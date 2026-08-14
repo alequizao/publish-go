@@ -1,0 +1,37 @@
+# Publish Go — hospedado em subpasta /publishgo sob docroot compartilhado.
+# Mapeia as URLs para o webroot real (public/) e ao front controller.
+
+# Executa o PHP do Publish Go no PHP-FPM 8.3 (apenas neste diretório),
+# sem alterar a versão padrão do domínio (que serve outros apps em 7.4).
+<FilesMatch "\.php$">
+    SetHandler "proxy:unix:/tmp/php-cgi-83.sock|fcgi://localhost"
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /publishgo/
+
+    # Garante que o cabeçalho Authorization (Bearer JWT) chegue ao PHP-FPM.
+    RewriteCond %{HTTP:Authorization} ^(.+)$
+    RewriteRule ^ - [E=HTTP_AUTHORIZATION:%1]
+
+    # Assets estáticos, uploads, PWA e páginas do painel → public/
+    RewriteRule ^(assets/.+|uploads/.+|app/.+|manifest\.json|sw\.js|offline\.html|favicon\.ico|robots\.txt)$ public/$1 [L]
+
+    # Loja pública (storefront) por empresa: /loja/<slug>
+    RewriteRule ^loja/[a-zA-Z0-9-]+/?$ public/app/loja.html [L]
+
+    # Raiz → tela de login
+    RewriteRule ^$ public/app/index.html [L]
+
+    # API e qualquer outra rota → front controller (também protege src/, vendor/, .env)
+    RewriteRule ^ public/index.php [L]
+</IfModule>
+
+# Service worker controla todo o escopo /publishgo/
+<IfModule mod_headers.c>
+    <FilesMatch "sw\.js$">
+        Header set Service-Worker-Allowed "/publishgo/"
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
+</IfModule>

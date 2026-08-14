@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>window.PG_BASE='/publishgo';</script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Catálogo — Publish Go</title>
+    <link rel="icon" href="/publishgo/favicon.ico" />
+    <meta name="theme-color" content="#F5A623" />
+    <link rel="manifest" href="/publishgo/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } };</script>
+    <link rel="stylesheet" href="/publishgo/assets/css/app.css?v=202606041800" />
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+    <style>[x-cloak]{display:none!important}</style>
+</head>
+<body class="min-h-screen">
+<div class="flex min-h-screen" x-data="catalogPage()" x-init="init()">
+    <div id="shell-aside"></div>
+    <div class="flex-1 min-w-0 flex flex-col">
+        <div id="shell-top"></div>
+        <main class="flex-1 p-4 lg:p-8 space-y-6">
+
+            <!-- Uso do plano -->
+            <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="pg-card p-4">
+                    <div class="text-sm" style="color:var(--pg-muted)">Plano</div>
+                    <div class="text-xl font-extrabold mt-1" x-text="(limits.label||'—')"></div>
+                </div>
+                <div class="pg-card p-4">
+                    <div class="text-sm" style="color:var(--pg-muted)">Produtos</div>
+                    <div class="text-xl font-extrabold mt-1"><span x-text="usage.products ?? '–'"></span><span class="text-sm font-medium" style="color:var(--pg-muted)" x-text="limits.max_products>0 ? ' / '+limits.max_products : ' / ∞'"></span></div>
+                </div>
+                <div class="pg-card p-4">
+                    <div class="text-sm" style="color:var(--pg-muted)">Categorias</div>
+                    <div class="text-xl font-extrabold mt-1"><span x-text="usage.categories ?? '–'"></span><span class="text-sm font-medium" style="color:var(--pg-muted)" x-text="limits.max_categories>0 ? ' / '+limits.max_categories : ' / ∞'"></span></div>
+                </div>
+                <a :href="storeUrl" target="_blank" class="pg-card p-4 hover:shadow-md transition flex items-center justify-between">
+                    <div><div class="text-sm" style="color:var(--pg-muted)">Sua loja</div><div class="text-sm font-bold mt-1" style="color:var(--pg-primary)">Abrir vitrine →</div></div>
+                    <span x-html="PG.icon('store','w-6 h-6')" style="color:var(--pg-primary)"></span>
+                </a>
+            </section>
+
+            <!-- Abas -->
+            <div class="flex items-center gap-2 flex-wrap">
+                <button @click="tab='products'" :class="tab==='products'?'pg-btn-primary':'pg-btn-ghost'" class="pg-btn !py-2 text-sm">Produtos</button>
+                <button @click="tab='categories'" :class="tab==='categories'?'pg-btn-primary':'pg-btn-ghost'" class="pg-btn !py-2 text-sm">Categorias</button>
+                <div class="flex-1"></div>
+                <button x-show="tab==='products'" @click="openProduct()" class="pg-btn pg-btn-primary !py-2 text-sm"><span x-html="PG.icon('plus','w-4 h-4')"></span> Novo produto</button>
+                <button x-show="tab==='categories'" @click="openCategory()" class="pg-btn pg-btn-primary !py-2 text-sm"><span x-html="PG.icon('plus','w-4 h-4')"></span> Nova categoria</button>
+            </div>
+
+            <!-- PRODUTOS -->
+            <section x-show="tab==='products'" class="space-y-4">
+                <div class="flex gap-2 flex-wrap">
+                    <input x-model="search" @input.debounce.300ms="loadProducts()" class="pg-input max-w-xs" placeholder="Buscar produto…" />
+                    <select x-model="filterCat" @change="loadProducts()" class="pg-input max-w-xs">
+                        <option value="">Todas as categorias</option>
+                        <template x-for="c in categories" :key="c.id"><option :value="c.id" x-text="c.name"></option></template>
+                    </select>
+                </div>
+                <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <template x-for="p in products" :key="p.id">
+                        <div class="pg-card overflow-hidden pg-enter">
+                            <div class="h-36 w-full grid place-items-center" :style="p.image_url ? '' : 'background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))'">
+                                <img x-show="p.image_url" :src="p.image_url" class="h-full w-full object-cover" />
+                                <span x-show="!p.image_url" class="text-white text-3xl font-extrabold" x-text="p.name.slice(0,2).toUpperCase()"></span>
+                            </div>
+                            <div class="p-4">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="min-w-0">
+                                        <div class="font-bold truncate" x-text="p.name"></div>
+                                        <div class="text-xs truncate" style="color:var(--pg-muted)" x-text="p.category_name||'Sem categoria'"></div>
+                                    </div>
+                                    <span class="pg-badge" :class="p.is_active?'st-delivered':'st-canceled'" x-text="p.is_active?'Ativo':'Inativo'"></span>
+                                </div>
+                                <div class="mt-2 flex items-center gap-2">
+                                    <span class="font-extrabold" x-text="PG.fmt.money(p.promo_price ?? p.price)"></span>
+                                    <span x-show="p.promo_price" class="text-xs line-through" style="color:var(--pg-muted)" x-text="PG.fmt.money(p.price)"></span>
+                                </div>
+                                <div x-show="p.track_stock" class="mt-1 text-xs" :style="p.stock_qty<=p.stock_alert?'color:#ef4444':'color:var(--pg-muted)'">Estoque: <span x-text="p.stock_qty"></span></div>
+                                <div class="mt-3 flex gap-2">
+                                    <button @click="openProduct(p)" class="pg-btn pg-btn-ghost !py-1.5 text-xs flex-1">Editar</button>
+                                    <button @click="removeProduct(p)" class="pg-btn pg-btn-ghost !py-1.5 text-xs" title="Excluir" x-html="PG.icon('close','w-4 h-4')"></button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+                <div x-show="!loading && products.length===0" class="text-center py-16" style="color:var(--pg-muted)">Nenhum produto. Crie o primeiro!</div>
+            </section>
+
+            <!-- CATEGORIAS -->
+            <section x-show="tab==='categories'" class="pg-card overflow-hidden" style="display:none">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead><tr class="text-left" style="color:var(--pg-muted)"><th class="px-5 py-3 font-medium">Categoria</th><th class="px-3 py-3 font-medium">Produtos</th><th class="px-3 py-3 font-medium">Status</th><th class="px-5 py-3 font-medium text-right">Ações</th></tr></thead>
+                        <tbody>
+                            <template x-for="c in categories" :key="c.id">
+                                <tr class="border-t" style="border-color:var(--pg-border)">
+                                    <td class="px-5 py-3"><div class="font-semibold" x-text="c.name"></div><div class="text-xs" style="color:var(--pg-muted)" x-text="c.description"></div></td>
+                                    <td class="px-3 py-3 font-medium" x-text="c.products_count"></td>
+                                    <td class="px-3 py-3"><span class="pg-badge" :class="c.is_active?'st-delivered':'st-canceled'" x-text="c.is_active?'Ativa':'Inativa'"></span></td>
+                                    <td class="px-5 py-3 text-right">
+                                        <button @click="openCategory(c)" class="pg-btn pg-btn-ghost !py-1.5 text-xs">Editar</button>
+                                        <button @click="removeCategory(c)" class="pg-btn pg-btn-ghost !py-1.5 text-xs">Excluir</button>
+                                    </td>
+                                </tr>
+                            </template>
+                            <template x-if="!loading && categories.length===0"><tr><td colspan="4" class="p-10 text-center" style="color:var(--pg-muted)">Nenhuma categoria.</td></tr></template>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+</div>
+
+<!-- Modal produto -->
+<div x-data x-show="$store.cat.product" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style="display:none">
+    <div class="absolute inset-0 bg-black/50" @click="$store.cat.product=false"></div>
+    <div class="relative w-full sm:max-w-lg pg-card p-6 max-h-[92vh] overflow-y-auto pg-pop rounded-b-none sm:rounded-2xl" x-data="productModal()" x-effect="$store.cat.product && boot()">
+        <div class="flex items-center justify-between mb-4"><h2 class="text-xl font-bold" x-text="f.id?'Editar produto':'Novo produto'"></h2><button @click="$store.cat.product=false" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('close')"></button></div>
+        <form @submit.prevent="save()" class="space-y-3">
+            <div class="flex items-center gap-3">
+                <div class="w-20 h-20 rounded-xl overflow-hidden grid place-items-center shrink-0" style="background:color-mix(in srgb,var(--pg-text) 6%,transparent)">
+                    <img x-show="f.image_url" :src="f.image_url" class="w-full h-full object-cover" />
+                    <span x-show="!f.image_url" style="color:var(--pg-muted)" x-html="PG.icon('catalog','w-7 h-7')"></span>
+                </div>
+                <label class="pg-btn pg-btn-ghost text-sm cursor-pointer"><span x-show="!uploading">Enviar foto</span><span x-show="uploading">Enviando…</span><input type="file" accept="image/*" class="hidden" @change="upload($event)" /></label>
+            </div>
+            <div><label class="text-sm font-medium">Nome</label><input x-model="f.name" required class="pg-input mt-1" /></div>
+            <div><label class="text-sm font-medium">Descrição</label><textarea x-model="f.description" rows="2" class="pg-input mt-1"></textarea></div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="text-sm font-medium">Categoria</label><select x-model="f.category_id" class="pg-input mt-1"><option value="">—</option><template x-for="c in $store.cat.categories" :key="c.id"><option :value="c.id" x-text="c.name"></option></template></select></div>
+                <div><label class="text-sm font-medium">SKU</label><input x-model="f.sku" class="pg-input mt-1" /></div>
+                <div><label class="text-sm font-medium">Preço (R$)</label><input x-model="f.price" type="number" step="0.01" min="0" required class="pg-input mt-1" /></div>
+                <div><label class="text-sm font-medium">Preço promo (R$)</label><input x-model="f.promo_price" type="number" step="0.01" min="0" class="pg-input mt-1" placeholder="opcional" /></div>
+            </div>
+            <div class="flex items-center gap-4 flex-wrap">
+                <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="f.is_active" /> Ativo</label>
+                <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="f.is_featured" /> Destaque</label>
+                <label class="flex items-center gap-2 text-sm" :class="$store.cat.allowStock?'':'opacity-40'"><input type="checkbox" x-model="f.track_stock" :disabled="!$store.cat.allowStock" /> Controlar estoque</label>
+            </div>
+            <div x-show="f.track_stock" class="grid grid-cols-2 gap-3">
+                <div><label class="text-sm font-medium">Qtd. em estoque</label><input x-model="f.stock_qty" type="number" class="pg-input mt-1" /></div>
+                <div><label class="text-sm font-medium">Alerta de estoque</label><input x-model="f.stock_alert" type="number" class="pg-input mt-1" /></div>
+            </div>
+
+            <!-- Complementos (apenas ao editar produto existente) -->
+            <div x-show="f.id" class="pt-3 border-t" style="border-color:var(--pg-border)">
+                <div class="flex items-center justify-between mb-2"><div class="font-semibold text-sm">Complementos</div></div>
+                <template x-for="g in groups" :key="g.id">
+                    <div class="rounded-lg p-3 mb-2" style="background:color-mix(in srgb,var(--pg-text) 4%,transparent)">
+                        <div class="flex items-center justify-between"><div class="font-medium text-sm" x-text="g.name + (g.is_required?' (obrigatório)':'')"></div><button type="button" @click="delGroup(g)" class="text-xs" style="color:#ef4444">remover</button></div>
+                        <template x-for="o in g.options" :key="o.id"><div class="flex items-center justify-between text-sm mt-1 pl-2"><span x-text="o.name + (o.price>0?' (+'+PG.fmt.money(o.price)+')':'')"></span><button type="button" @click="delOption(o)" class="text-xs" style="color:var(--pg-muted)">x</button></div></template>
+                        <div class="flex gap-2 mt-2">
+                            <input x-model="g._optName" placeholder="Opção" class="pg-input !py-1.5 text-sm" />
+                            <input x-model="g._optPrice" type="number" step="0.01" placeholder="R$" class="pg-input !py-1.5 text-sm w-24" />
+                            <button type="button" @click="addOption(g)" class="pg-btn pg-btn-ghost !py-1.5 text-sm">+</button>
+                        </div>
+                    </div>
+                </template>
+                <div class="flex gap-2 mt-2">
+                    <input x-model="newGroup" placeholder="Novo grupo (ex.: Adicionais)" class="pg-input !py-1.5 text-sm" />
+                    <button type="button" @click="addGroup()" class="pg-btn pg-btn-ghost !py-1.5 text-sm">Adicionar grupo</button>
+                </div>
+            </div>
+
+            <button type="submit" :disabled="saving" class="pg-btn pg-btn-primary w-full"><span x-show="!saving">Salvar</span><svg x-show="saving" class="pg-ring-spin w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg></button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal categoria -->
+<div x-data x-show="$store.cat.category" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style="display:none">
+    <div class="absolute inset-0 bg-black/50" @click="$store.cat.category=false"></div>
+    <div class="relative w-full sm:max-w-md pg-card p-6 pg-pop rounded-b-none sm:rounded-2xl" x-data="categoryModal()" x-effect="$store.cat.category && boot()">
+        <div class="flex items-center justify-between mb-4"><h2 class="text-xl font-bold" x-text="f.id?'Editar categoria':'Nova categoria'"></h2><button @click="$store.cat.category=false" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('close')"></button></div>
+        <form @submit.prevent="save()" class="space-y-3">
+            <div><label class="text-sm font-medium">Nome</label><input x-model="f.name" required class="pg-input mt-1" /></div>
+            <div><label class="text-sm font-medium">Descrição</label><input x-model="f.description" class="pg-input mt-1" /></div>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="f.is_active" /> Ativa</label>
+            <button type="submit" :disabled="saving" class="pg-btn pg-btn-primary w-full"><span x-show="!saving">Salvar</span><svg x-show="saving" class="pg-ring-spin w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg></button>
+        </form>
+    </div>
+</div>
+
+<script src="/publishgo/assets/js/app.js?v=202606041800"></script>
+<script src="/publishgo/assets/js/realtime.js?v=202606041800"></script>
+<script>
+document.addEventListener('alpine:init', () => Alpine.store('cat', { product:false, category:false, editing:null, categories:[], allowStock:false }));
+function catalogPage(){
+    return {
+        tab:'products', loading:true, limits:{}, usage:{}, categories:[], products:[], search:'', filterCat:'',
+        get storeUrl(){ return PG.url('/loja/' + (PG.auth.company?.slug || '')); },
+        async init(){
+            if(!PG.requireAuth()) return;
+            PG.mountShell('catalog'); PG.applyBrand(PG.auth.company);
+            await this.loadLimits(); await this.loadCategories(); await this.loadProducts();
+            window.addEventListener('pg-catalog-reload', ()=>{ this.loadLimits(); this.loadCategories(); this.loadProducts(); });
+        },
+        async loadLimits(){ try{ const d=await PG.api.get('/catalog/limits'); this.limits=d.limits; this.usage=d.usage; Alpine.store('cat').allowStock=!!d.limits.allow_stock; }catch(e){} },
+        async loadCategories(){ try{ this.categories=await PG.api.get('/catalog/categories'); Alpine.store('cat').categories=this.categories; }catch(e){ PG.toast(e.message,'error'); } },
+        async loadProducts(){
+            this.loading=true;
+            try{ const q=[]; if(this.search)q.push('search='+encodeURIComponent(this.search)); if(this.filterCat)q.push('category_id='+this.filterCat);
+                 this.products=await PG.api.get('/catalog/products'+(q.length?'?'+q.join('&'):'')); }
+            catch(e){ PG.toast(e.message,'error'); } finally{ this.loading=false; }
+        },
+        openProduct(p=null){ Alpine.store('cat').editing = p?JSON.parse(JSON.stringify(p)):null; Alpine.store('cat').product=true; },
+        openCategory(c=null){ Alpine.store('cat').editing = c?JSON.parse(JSON.stringify(c)):null; Alpine.store('cat').category=true; },
+        async removeProduct(p){ if(!confirm('Excluir "'+p.name+'"?'))return; try{ await PG.api.del('/catalog/products/'+p.id); PG.toast('Produto excluído.','success'); this.loadProducts(); this.loadLimits(); }catch(e){ PG.toast(e.message,'error'); } },
+        async removeCategory(c){ if(!confirm('Excluir a categoria "'+c.name+'"?'))return; try{ await PG.api.del('/catalog/categories/'+c.id); PG.toast('Categoria excluída.','success'); this.loadCategories(); this.loadLimits(); }catch(e){ PG.toast(e.message,'error'); } },
+    };
+}
+function productModal(){
+    return {
+        saving:false, uploading:false, _id:null, groups:[], newGroup:'',
+        f:{ id:null,name:'',description:'',category_id:'',sku:'',price:'',promo_price:'',is_active:true,is_featured:false,track_stock:false,stock_qty:0,stock_alert:0,image_url:'' },
+        boot(){
+            const ed = Alpine.store('cat').editing;
+            const key = ed? ed.id : 'new';
+            if(this._id===key) return; this._id=key; this.groups=[]; this.newGroup='';
+            if(ed){ this.f={ id:ed.id,name:ed.name,description:ed.description||'',category_id:ed.category_id||'',sku:ed.sku||'',price:ed.price,promo_price:ed.promo_price??'',is_active:!!ed.is_active,is_featured:!!ed.is_featured,track_stock:!!ed.track_stock,stock_qty:ed.stock_qty||0,stock_alert:ed.stock_alert||0,image_url:ed.image_url||'' }; this.loadGroups(); }
+            else { this.f={ id:null,name:'',description:'',category_id:'',sku:'',price:'',promo_price:'',is_active:true,is_featured:false,track_stock:false,stock_qty:0,stock_alert:0,image_url:'' }; }
+        },
+        async loadGroups(){ try{ const p=await PG.api.get('/catalog/products/'+this.f.id); this.groups=(p.option_groups||[]).map(g=>({...g,_optName:'',_optPrice:''})); }catch(e){} },
+        async upload(e){ const file=e.target.files[0]; if(!file)return; this.uploading=true; try{ const fd=new FormData(); fd.append('file',file); const res=await fetch(PG.url('/api/upload'),{method:'POST',headers:{'Authorization':'Bearer '+PG.auth.token},body:fd}); const j=await res.json(); if(j.ok){ this.f.image_url=j.data.url; } else throw new Error(j.error?.message); }catch(err){ PG.toast(err.message||'Falha no upload','error'); } finally{ this.uploading=false; } },
+        async save(){
+            this.saving=true;
+            const body={...this.f}; body.is_active=body.is_active?1:0; body.is_featured=body.is_featured?1:0; body.track_stock=body.track_stock?1:0;
+            if(body.promo_price==='')body.promo_price=null;
+            try{
+                if(this.f.id){ await PG.api.put('/catalog/products/'+this.f.id, body); }
+                else { const r=await PG.api.post('/catalog/products', body); this.f.id=r.id; }
+                PG.toast('Produto salvo. ✅','success');
+                Alpine.store('cat').product=false;
+                window.dispatchEvent(new Event('pg-catalog-reload'));
+            }catch(e){ const d=e.details?Object.values(e.details).flat()[0]:null; PG.toast(d||e.message,'error'); }
+            finally{ this.saving=false; }
+        },
+        async addGroup(){ if(!this.newGroup.trim())return; try{ await PG.api.post('/catalog/products/'+this.f.id+'/groups',{name:this.newGroup}); this.newGroup=''; this.loadGroups(); }catch(e){ PG.toast(e.message,'error'); } },
+        async delGroup(g){ try{ await PG.api.del('/catalog/groups/'+g.id); this.loadGroups(); }catch(e){ PG.toast(e.message,'error'); } },
+        async addOption(g){ if(!g._optName?.trim())return; try{ await PG.api.post('/catalog/groups/'+g.id+'/options',{name:g._optName,price:parseFloat(g._optPrice||0)}); g._optName='';g._optPrice=''; this.loadGroups(); }catch(e){ PG.toast(e.message,'error'); } },
+        async delOption(o){ try{ await PG.api.del('/catalog/options/'+o.id); this.loadGroups(); }catch(e){ PG.toast(e.message,'error'); } },
+    };
+}
+function categoryModal(){
+    return {
+        saving:false, _id:null, f:{ id:null,name:'',description:'',is_active:true },
+        boot(){ const ed=Alpine.store('cat').editing; const key=ed?ed.id:'new'; if(this._id===key)return; this._id=key;
+                this.f = ed? {id:ed.id,name:ed.name,description:ed.description||'',is_active:!!ed.is_active} : {id:null,name:'',description:'',is_active:true}; },
+        async save(){
+            this.saving=true; const body={name:this.f.name,description:this.f.description,is_active:this.f.is_active?1:0};
+            try{ if(this.f.id){ await PG.api.put('/catalog/categories/'+this.f.id,body); } else { await PG.api.post('/catalog/categories',body); }
+                 PG.toast('Categoria salva. ✅','success'); Alpine.store('cat').category=false; window.dispatchEvent(new Event('pg-catalog-reload'));
+            }catch(e){ const d=e.details?Object.values(e.details).flat()[0]:null; PG.toast(d||e.message,'error'); } finally{ this.saving=false; }
+        },
+    };
+}
+</script>
+</body>
+</html>

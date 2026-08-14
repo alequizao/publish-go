@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>window.PG_BASE='/publishgo';</script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Central — Publish Go</title>
+    <link rel="icon" href="/publishgo/favicon.ico" />
+    <meta name="theme-color" content="#F5A623" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } };</script>
+    <link rel="stylesheet" href="/publishgo/assets/css/app.css?v=202606041800" />
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+<body class="min-h-screen">
+<div class="pg-aurora"></div>
+<div class="flex min-h-screen" x-data="adminPanel()" x-init="init()">
+    <!-- Sidebar -->
+    <aside class="hidden lg:flex flex-col w-72 shrink-0 border-r p-4" style="border-color:var(--pg-border)">
+        <div class="flex items-center gap-3 px-2 py-3">
+            <div class="w-10 h-10 rounded-xl grid place-items-center text-white font-bold" style="background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))">PG</div>
+            <div><div class="font-bold leading-tight">Publish Go</div><div class="text-xs" style="color:var(--pg-muted)">Central · Super-Admin</div></div>
+        </div>
+        <nav class="mt-4 flex flex-col gap-1">
+            <a class="pg-nav active"><span x-html="PG.icon('dashboard')"></span><span>Visão geral</span></a>
+        </nav>
+        <div class="mt-auto pg-card p-3 flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full grid place-items-center text-white text-sm font-semibold" style="background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))" x-text="(user.name||'A').slice(0,2)"></div>
+            <div class="flex-1 min-w-0"><div class="text-sm font-semibold truncate" x-text="user.name"></div><div class="text-xs truncate" style="color:var(--pg-muted)" x-text="user.email"></div></div>
+            <button @click="PG.logout()" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('logout','w-4 h-4')"></button>
+        </div>
+    </aside>
+
+    <div class="flex-1 min-w-0 flex flex-col">
+        <header class="sticky top-0 z-20 pg-glass px-4 lg:px-8 py-3 flex items-center gap-2 lg:gap-3">
+            <div class="lg:hidden w-9 h-9 rounded-lg grid place-items-center text-white font-bold shrink-0" style="background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))">PG</div>
+            <h1 class="flex-1 text-base lg:text-xl font-bold truncate">Central</h1>
+            <span class="pg-badge st-delivered pg-live hidden sm:inline-flex">Ao vivo</span>
+            <button @click="PG.theme.toggle()" class="pg-btn pg-btn-ghost !p-2"><span class="dark:hidden" x-html="PG.icon('moon')"></span><span class="hidden dark:inline" x-html="PG.icon('sun')"></span></button>
+            <button @click="openCreate()" class="pg-btn pg-btn-primary !px-3"><span x-html="PG.icon('plus','w-5 h-5')"></span><span class="hidden sm:inline"> Nova empresa</span></button>
+            <button @click="PG.logout()" class="pg-btn pg-btn-ghost !p-2 lg:hidden" title="Sair" x-html="PG.icon('logout','w-5 h-5')"></button>
+        </header>
+
+        <main class="flex-1 p-4 lg:p-8 space-y-6">
+            <!-- KPIs globais -->
+            <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="pg-card p-5"><div class="text-sm" style="color:var(--pg-muted)">Empresas ativas</div><div class="text-3xl font-extrabold mt-1"><span x-text="o.companies_active ?? '–'"></span><span class="text-base font-medium" style="color:var(--pg-muted)"> / <span x-text="o.companies_total ?? '–'"></span></span></div></div>
+                <div class="pg-card p-5"><div class="text-sm" style="color:var(--pg-muted)">GMV total</div><div class="text-3xl font-extrabold mt-1" x-text="PG.fmt.money(o.gmv||0)"></div></div>
+                <div class="pg-card p-5"><div class="text-sm" style="color:var(--pg-muted)">Pedidos</div><div class="text-3xl font-extrabold mt-1" x-text="PG.fmt.number(o.orders_total||0)"></div></div>
+                <div class="pg-card p-5"><div class="text-sm" style="color:var(--pg-muted)">Motoboys (online)</div><div class="text-3xl font-extrabold mt-1"><span x-text="o.couriers_total ?? '–'"></span> <span class="text-base text-emerald-500">(<span x-text="o.couriers_online ?? 0"></span>)</span></div></div>
+            </section>
+
+            <!-- Empresas -->
+            <section class="pg-card overflow-hidden">
+                <div class="p-5 flex items-center justify-between"><h2 class="font-bold text-lg">Empresas</h2><span class="text-sm" style="color:var(--pg-muted)" x-text="companies.length+' cadastradas'"></span></div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead><tr class="text-left" style="color:var(--pg-muted)">
+                            <th class="px-5 py-2 font-medium">Empresa</th><th class="px-3 py-2 font-medium">Plano</th>
+                            <th class="px-3 py-2 font-medium">Pedidos</th><th class="px-3 py-2 font-medium">Motoboys</th>
+                            <th class="px-3 py-2 font-medium">Status</th><th class="px-5 py-2 font-medium text-right">Ações</th>
+                        </tr></thead>
+                        <tbody>
+                            <template x-if="loading"><tr><td colspan="6" class="p-5"><div class="pg-skel h-10"></div></td></tr></template>
+                            <template x-for="c in companies" :key="c.id">
+                                <tr class="border-t" style="border-color:var(--pg-border)">
+                                    <td class="px-5 py-3">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-lg grid place-items-center text-white text-xs font-bold" :style="'background:linear-gradient(135deg,'+(c.primary_color||'var(--pg-primary)')+','+(c.accent_color||'var(--pg-accent)')+')'" x-text="c.name.slice(0,2).toUpperCase()"></div>
+                                            <div><div class="font-semibold" x-text="c.name"></div><div class="text-xs" style="color:var(--pg-muted)" x-text="c.subdomain ? c.subdomain+'.publishgo' : c.slug"></div></div>
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-3"><span class="pg-badge" :class="planClass(c.plan)" x-text="(c.plan||'').toUpperCase()"></span></td>
+                                    <td class="px-3 py-3 font-medium" x-text="c.orders_count"></td>
+                                    <td class="px-3 py-3 font-medium" x-text="c.couriers_count"></td>
+                                    <td class="px-3 py-3"><span class="pg-badge" :class="c.is_active?'st-delivered':'st-canceled'" x-text="c.is_active?'Ativa':'Suspensa'"></span></td>
+                                    <td class="px-5 py-3">
+                                        <div class="flex items-center justify-end gap-2">
+                                            <button @click="impersonate(c)" :disabled="!c.is_active" class="pg-btn pg-btn-primary !py-1.5 text-xs" title="Logar na conta como o estabelecimento">Acessar conta</button>
+                                            <button @click="openEdit(c)" class="pg-btn pg-btn-ghost !py-1.5 text-xs" title="Editar empresa">Editar</button>
+                                            <button @click="toggle(c)" class="pg-btn pg-btn-ghost !py-1.5 text-xs" x-text="c.is_active?'Suspender':'Ativar'"></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                            <template x-if="!loading && companies.length===0"><tr><td colspan="6" class="p-10 text-center" style="color:var(--pg-muted)">Nenhuma empresa ainda. Crie a primeira!</td></tr></template>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Limites por plano -->
+            <section class="pg-card overflow-hidden" x-data="planLimits()" x-init="load()">
+                <div class="p-5 flex items-center justify-between">
+                    <div><h2 class="font-bold text-lg">Planos & Limites</h2><p class="text-xs" style="color:var(--pg-muted)">Configure o que cada plano permite. 0 = ilimitado.</p></div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead><tr class="text-left" style="color:var(--pg-muted)">
+                            <th class="px-5 py-2 font-medium">Plano</th><th class="px-2 py-2 font-medium">Produtos</th><th class="px-2 py-2 font-medium">Categorias</th>
+                            <th class="px-2 py-2 font-medium">Motoboys</th><th class="px-2 py-2 font-medium">Pedidos/mês</th>
+                            <th class="px-2 py-2 font-medium">Loja</th><th class="px-2 py-2 font-medium">Cupons</th><th class="px-2 py-2 font-medium">Promo</th><th class="px-2 py-2 font-medium">Estoque</th>
+                            <th class="px-5 py-2 font-medium text-right">Ação</th>
+                        </tr></thead>
+                        <tbody>
+                            <template x-for="p in plans" :key="p.plan">
+                                <tr class="border-t" style="border-color:var(--pg-border)">
+                                    <td class="px-5 py-2 font-semibold capitalize" x-text="p.label||p.plan"></td>
+                                    <td class="px-2 py-2"><input x-model.number="p.max_products" type="number" class="pg-input !py-1.5 w-20" /></td>
+                                    <td class="px-2 py-2"><input x-model.number="p.max_categories" type="number" class="pg-input !py-1.5 w-20" /></td>
+                                    <td class="px-2 py-2"><input x-model.number="p.max_couriers" type="number" class="pg-input !py-1.5 w-20" /></td>
+                                    <td class="px-2 py-2"><input x-model.number="p.monthly_orders" type="number" class="pg-input !py-1.5 w-24" /></td>
+                                    <td class="px-2 py-2 text-center"><input type="checkbox" x-model="p.allow_storefront" /></td>
+                                    <td class="px-2 py-2 text-center"><input type="checkbox" x-model="p.allow_coupons" /></td>
+                                    <td class="px-2 py-2 text-center"><input type="checkbox" x-model="p.allow_promotions" /></td>
+                                    <td class="px-2 py-2 text-center"><input type="checkbox" x-model="p.allow_stock" /></td>
+                                    <td class="px-5 py-2 text-right"><button @click="save(p)" class="pg-btn pg-btn-primary !py-1.5 text-xs">Salvar</button></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+</div>
+
+<!-- Modal nova empresa -->
+<div x-data x-show="$store.amodal.open" x-cloak @keydown.escape.window="$store.amodal.open=false" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style="display:none">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="$store.amodal.open=false"></div>
+    <div class="relative w-full sm:max-w-md pg-card p-6 max-h-[92vh] overflow-y-auto pg-pop rounded-b-none sm:rounded-2xl" x-data="companyForm()">
+        <div class="flex items-center justify-between mb-4"><h2 class="text-xl font-bold">Nova empresa</h2><button @click="$store.amodal.open=false" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('close')"></button></div>
+        <form @submit.prevent="submit()" class="space-y-3">
+            <div class="grid grid-cols-3 gap-3">
+                <div><label class="text-sm font-medium">Tipo</label><select x-model="f.document_type" class="pg-input mt-1"><option value="cnpj">CNPJ</option><option value="cpf">CPF</option></select></div>
+                <div class="col-span-2"><label class="text-sm font-medium" x-text="f.document_type==='cpf'?'CPF':'CNPJ'"></label>
+                    <div class="flex gap-2 mt-1">
+                        <input x-model="f.document" class="pg-input" :placeholder="f.document_type==='cpf'?'000.000.000-00':'00.000.000/0000-00'" />
+                        <button type="button" x-show="f.document_type==='cnpj'" @click="lookupCnpj()" :disabled="busy" class="pg-btn pg-btn-ghost !px-3 text-sm whitespace-nowrap">Consultar</button>
+                    </div>
+                </div>
+            </div>
+            <div><label class="text-sm font-medium">Nome da empresa</label><input x-model="f.company_name" required class="pg-input mt-1" /></div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="text-sm font-medium">Responsável</label><input x-model="f.owner_name" required class="pg-input mt-1" /></div>
+                <div><label class="text-sm font-medium">Telefone</label><input x-model="f.phone" class="pg-input mt-1" /></div>
+                <div><label class="text-sm font-medium">E-mail (login)</label><input x-model="f.email" type="email" required class="pg-input mt-1" /></div>
+                <div><label class="text-sm font-medium">Senha</label><input x-model="f.password" type="password" required minlength="6" class="pg-input mt-1" /></div>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+                <div><label class="text-sm font-medium">CEP</label>
+                    <div class="flex gap-2 mt-1"><input x-model="f.cep" class="pg-input" placeholder="00000-000" /><button type="button" @click="lookupCep()" :disabled="busy" class="pg-btn pg-btn-ghost !px-3 text-sm">Buscar</button></div>
+                </div>
+                <div class="col-span-2"><label class="text-sm font-medium">Endereço</label><input x-model="f.address" class="pg-input mt-1" /></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="text-sm font-medium">Plano</label><select x-model="f.plan" class="pg-input mt-1"><option value="free">Free</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option></select></div>
+                <div><label class="text-sm font-medium">Cor</label><input type="color" x-model="f.primary_color" class="h-11 w-full rounded-lg border-0 bg-transparent mt-1 cursor-pointer" /></div>
+            </div>
+            <button type="submit" :disabled="saving" class="pg-btn pg-btn-primary w-full"><span x-show="!saving">Criar empresa</span><svg x-show="saving" class="pg-ring-spin w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg></button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal editar empresa -->
+<div x-data x-show="$store.emodal.open" x-cloak @keydown.escape.window="$store.emodal.open=false" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style="display:none">
+    <div class="absolute inset-0 bg-black/50" @click="$store.emodal.open=false"></div>
+    <div class="relative w-full sm:max-w-md pg-card p-6 max-h-[92vh] overflow-y-auto pg-pop rounded-b-none sm:rounded-2xl" x-data="editForm()" x-effect="$store.emodal.open && sync()">
+        <div class="flex items-center justify-between mb-4"><h2 class="text-xl font-bold">Editar empresa</h2><button @click="$store.emodal.open=false" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('close')"></button></div>
+        <form @submit.prevent="submit()" class="space-y-3">
+            <div><label class="text-sm font-medium">Nome da empresa</label><input x-model="f.name" required class="pg-input mt-1" /></div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="text-sm font-medium">Telefone</label><input x-model="f.phone" class="pg-input mt-1" /></div>
+                <div><label class="text-sm font-medium">Plano</label><select x-model="f.plan" class="pg-input mt-1"><option value="free">Free</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option></select></div>
+                <div><label class="text-sm font-medium">Cor primária</label><input type="color" x-model="f.primary_color" class="h-11 w-full rounded-lg border-0 bg-transparent mt-1 cursor-pointer" /></div>
+                <div><label class="text-sm font-medium">Cor de destaque</label><input type="color" x-model="f.accent_color" class="h-11 w-full rounded-lg border-0 bg-transparent mt-1 cursor-pointer" /></div>
+            </div>
+            <button type="submit" :disabled="saving" class="pg-btn pg-btn-primary w-full"><span x-show="!saving">Salvar alterações</span><svg x-show="saving" class="pg-ring-spin w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg></button>
+        </form>
+    </div>
+</div>
+
+<script src="/publishgo/assets/js/app.js?v=202606041800"></script>
+<script src="/publishgo/assets/js/realtime.js?v=202606041800"></script>
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.store('amodal', { open:false });
+    Alpine.store('emodal', { open:false, company:null });
+});
+function adminPanel() {
+    return {
+        loading:true, o:{}, companies:[], user:{},
+        async init(){
+            if(!PG.requireAuth()) return;
+            this.user = PG.auth.user || {};
+            if(this.user.role !== 'admin'){ PG.toast('Acesso restrito à central.','error'); setTimeout(()=>location.href=PG.url('/app/dashboard.html'),800); return; }
+            await this.load();
+            PG.realtime.on('poll', ()=>this.load());
+            PG.realtime.on('order.created', ()=>this.load());
+            PG.realtime.connect();
+        },
+        async load(){
+            try{ const [o,c]=await Promise.all([PG.api.get('/admin/overview'),PG.api.get('/admin/companies')]); this.o=o; this.companies=c; }
+            catch(e){ PG.toast(e.message,'error'); } finally{ this.loading=false; }
+        },
+        planClass(p){ return { free:'st-received', pro:'st-dispatched', enterprise:'st-delivered' }[p]||'st-received'; },
+        async toggle(c){ try{ await PG.api.patch('/admin/companies/'+c.id+'/toggle',{}); PG.toast('Status atualizado.','success'); this.load(); }catch(e){ PG.toast(e.message,'error'); } },
+        async impersonate(c){
+            if(!c.is_active){ PG.toast('Ative a empresa antes de acessá-la.','warn'); return; }
+            if(!confirm('Entrar no painel de "'+c.name+'" como o estabelecimento?\nVocê sairá da central e assumirá a conta da empresa.')) return;
+            try{
+                const data = await PG.api.post('/admin/companies/'+c.id+'/impersonate', {});
+                PG.auth.set(data);
+                PG.toast('Acessando '+c.name+'…','success');
+                setTimeout(()=>location.href=PG.url('/app/dashboard.html'),500);
+            }catch(e){ PG.toast(e.message||'Falha ao acessar a conta.','error'); }
+        },
+        openCreate(){ Alpine.store('amodal').open=true; },
+        openEdit(c){ Alpine.store('emodal').company = JSON.parse(JSON.stringify(c)); Alpine.store('emodal').open=true; },
+    };
+}
+function editForm(){
+    return {
+        saving:false, _id:null,
+        f:{ name:'', phone:'', plan:'pro', primary_color:'#F5A623', accent_color:'#F2994A' },
+        sync(){
+            const c = Alpine.store('emodal').company || {};
+            if (this._id === c.id) return;      // evita resetar enquanto edita
+            this._id = c.id;
+            this.f = {
+                name: c.name || '', phone: c.phone || '', plan: c.plan || 'pro',
+                primary_color: c.primary_color || '#F5A623', accent_color: c.accent_color || '#F2994A',
+            };
+        },
+        async submit(){
+            const id = Alpine.store('emodal').company?.id;
+            if(!id) return;
+            this.saving=true;
+            try{
+                await PG.api.put('/admin/companies/'+id, this.f);
+                PG.toast('Empresa atualizada. ✅','success');
+                Alpine.store('emodal').open=false; this._id=null;
+                window.dispatchEvent(new Event('pg-admin-reload'));
+            }catch(e){ const d=e.details?Object.values(e.details).flat()[0]:null; PG.toast(d||e.message,'error'); }
+            finally{ this.saving=false; }
+        },
+    };
+}
+function companyForm(){
+    return {
+        saving:false, busy:false,
+        f:{ document_type:'cnpj',document:'',cep:'',address:'',company_name:'',owner_name:'',phone:'',email:'',password:'',plan:'pro',primary_color:'#F5A623' },
+        async lookupCnpj(){
+            const doc=(this.f.document||'').replace(/\D/g,''); if(doc.length!==14){ PG.toast('Informe um CNPJ com 14 dígitos.','warn'); return; }
+            this.busy=true;
+            try{ const d=await PG.api.get('/lookup/cnpj/'+doc);
+                this.f.company_name=this.f.company_name||d.company_name; if(d.phone)this.f.phone=d.phone; if(d.email)this.f.email=this.f.email||d.email;
+                if(d.cep)this.f.cep=d.cep; if(d.address)this.f.address=d.address;
+                PG.toast('Dados do CNPJ preenchidos.','success');
+            }catch(e){ PG.toast(e.message||'CNPJ não encontrado.','error'); } finally{ this.busy=false; }
+        },
+        async lookupCep(){
+            const cep=(this.f.cep||'').replace(/\D/g,''); if(cep.length!==8){ PG.toast('Informe um CEP com 8 dígitos.','warn'); return; }
+            this.busy=true;
+            try{ const d=await PG.api.get('/lookup/cep/'+cep); this.f.address=d.address; PG.toast('Endereço preenchido.','success'); }
+            catch(e){ PG.toast(e.message||'CEP não encontrado.','error'); } finally{ this.busy=false; }
+        },
+        async submit(){
+            this.saving=true;
+            try{
+                await PG.api.post('/admin/companies', this.f);
+                PG.toast('Empresa criada! 🎉','success');
+                Alpine.store('amodal').open=false;
+                window.dispatchEvent(new Event('pg-admin-reload'));
+                this.f.company_name=''; this.f.owner_name=''; this.f.email=''; this.f.password=''; this.f.document=''; this.f.cep=''; this.f.address='';
+            }catch(e){ const d=e.details?Object.values(e.details).flat()[0]:null; PG.toast(d||e.message,'error'); }
+            finally{ this.saving=false; }
+        },
+    };
+}
+function planLimits(){
+    return {
+        plans:[],
+        async load(){ try{ this.plans=await PG.api.get('/admin/plan-limits'); }catch(e){ PG.toast(e.message,'error'); } },
+        async save(p){
+            try{
+                await PG.api.put('/admin/plan-limits/'+p.plan, {
+                    label:p.label, max_products:p.max_products, max_categories:p.max_categories, max_couriers:p.max_couriers,
+                    monthly_orders:p.monthly_orders, allow_storefront:p.allow_storefront?1:0, allow_coupons:p.allow_coupons?1:0,
+                    allow_promotions:p.allow_promotions?1:0, allow_stock:p.allow_stock?1:0,
+                });
+                PG.toast('Limites do plano '+(p.label||p.plan)+' salvos. ✅','success');
+            }catch(e){ PG.toast(e.message,'error'); }
+        },
+    };
+}
+window.addEventListener('pg-admin-reload', ()=>{ const el=document.querySelector('[x-data="adminPanel()"]'); if(el && el._x_dataStack) el._x_dataStack[0].load(); });
+</script>
+</body>
+</html>

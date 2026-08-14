@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Recibo de pagamento — Publish Go</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #e9eef5; font-family: 'Segoe UI', system-ui, sans-serif; color: #0b1220; padding: 16px; }
+        .toolbar { max-width: 320px; margin: 0 auto 12px; display: flex; gap: 8px; }
+        .btn { flex: 1; padding: 10px; border: 0; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; }
+        .btn-primary { background: #2563eb; color: #fff; }
+        .btn-ghost { background: #fff; color: #0b1220; border: 1px solid #d6deeb; }
+        /* Cupom 80mm */
+        .receipt {
+            width: 302px; margin: 0 auto; background: #fff; padding: 14px 16px;
+            font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.45; color: #000;
+            box-shadow: 0 10px 30px -12px rgba(0,0,0,.25);
+        }
+        .center { text-align: center; }
+        .b { font-weight: 700; }
+        .lg { font-size: 16px; }
+        .row { display: flex; justify-content: space-between; gap: 8px; }
+        .hr { border-top: 1px dashed #000; margin: 8px 0; }
+        .muted { color: #333; }
+        .logo { width: 46px; height: 46px; border-radius: 8px; object-fit: cover; display: inline-block; }
+        .sign { margin-top: 26px; border-top: 1px solid #000; text-align: center; padding-top: 4px; font-size: 11px; }
+        @media print {
+            body { background: #fff; padding: 0; }
+            .toolbar { display: none; }
+            .receipt { box-shadow: none; width: 80mm; padding: 4mm; }
+            @page { size: 80mm auto; margin: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir / PDF</button>
+        <button class="btn btn-ghost" onclick="window.close()">Fechar</button>
+    </div>
+
+    <div class="receipt" id="r">
+        <div class="center">
+            <img id="logo" class="logo" style="display:none" />
+            <div class="b lg" id="company">Publish Go</div>
+            <div class="muted">RECIBO DE PAGAMENTO</div>
+        </div>
+        <div class="hr"></div>
+        <div class="row"><span>Entregador:</span><span class="b" id="cname">—</span></div>
+        <div class="row"><span>Documento:</span><span id="cdoc">—</span></div>
+        <div class="row"><span>Data:</span><span id="date">—</span></div>
+        <div class="hr"></div>
+
+        <div id="paymentBlock" style="display:none">
+            <div class="center b">PAGAMENTO REGISTRADO</div>
+            <div class="row"><span>Forma:</span><span id="pmethod">—</span></div>
+            <div class="row lg"><span class="b">VALOR PAGO</span><span class="b" id="pamount">R$ 0,00</span></div>
+            <div class="row"><span class="muted" id="pdesc"></span></div>
+            <div class="hr"></div>
+        </div>
+
+        <div class="row"><span>Total ganho:</span><span id="earned">R$ 0,00</span></div>
+        <div class="row"><span>Total pago:</span><span id="paid">R$ 0,00</span></div>
+        <div class="row b"><span>Saldo a pagar:</span><span id="balance">R$ 0,00</span></div>
+
+        <div class="hr"></div>
+        <div class="b center">EXTRATO</div>
+        <div id="tx"></div>
+
+        <div class="sign">Assinatura do entregador</div>
+        <div class="center muted" style="margin-top:10px;font-size:10px">Emitido por Publish Go · publishdev.com.br</div>
+    </div>
+
+<script>
+(function(){
+    var data; try { data = JSON.parse(localStorage.getItem('pg_receipt')||'null'); } catch(e){}
+    if(!data){ document.getElementById('r').innerHTML='<div class="center">Recibo não encontrado.</div>'; return; }
+    var money=function(v){ return (Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); };
+    var co=data.company||{}, c=data.courier||{};
+    if(co.logo_url){ var l=document.getElementById('logo'); l.src=co.logo_url; l.style.display='inline-block'; }
+    document.getElementById('company').textContent = co.name || 'Publish Go';
+    document.getElementById('cname').textContent = c.name || '—';
+    document.getElementById('cdoc').textContent = c.document || '—';
+    document.getElementById('date').textContent = new Date(data.at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    document.getElementById('earned').textContent = money(data.earned);
+    document.getElementById('paid').textContent = money(data.paid);
+    document.getElementById('balance').textContent = money(c.balance);
+
+    if(data.lastPayment){
+        document.getElementById('paymentBlock').style.display='block';
+        document.getElementById('pmethod').textContent = ({pix:'PIX',cash:'Dinheiro',transfer:'Transferência'})[data.lastPayment.method]||data.lastPayment.method;
+        document.getElementById('pamount').textContent = money(data.lastPayment.amount);
+        document.getElementById('pdesc').textContent = data.lastPayment.description||'';
+    }
+
+    var tx=document.getElementById('tx');
+    (data.transactions||[]).slice(0,30).forEach(function(t){
+        var d=document.createElement('div'); d.className='row';
+        var dt=(t.created_at||'').slice(0,10).split('-').reverse().join('/');
+        d.innerHTML='<span style="max-width:170px;overflow:hidden">'+dt+' '+((t.description||t.type)||'').slice(0,18)+'</span><span>'+(t.direction==='credit'?'+':'-')+money(t.amount)+'</span>';
+        tx.appendChild(d);
+    });
+    if(!(data.transactions||[]).length){ tx.innerHTML='<div class="center muted">Sem lançamentos.</div>'; }
+})();
+</script>
+</body>
+</html>

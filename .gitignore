@@ -1,0 +1,34 @@
+# --- Credenciais e ambiente ---
+.env
+.env.*
+!.env.example
+CREDENCIAIS.txt
+
+# --- Dependencias ---
+vendor/
+node_modules/
+
+# --- Dados de cliente / uploads ---
+public/uploads/
+uploads/
+storage/
+var/
+
+# --- Dumps com dados reais ---
+*_backup_*.sql
+*backup*.sql
+*.sql.gz
+
+# --- Logs e temporarios ---
+*.log
+logs/
+cache/
+tmp/
+*.bak
+*.bak-*
+*.tar.gz
+*.zip
+
+# --- Sistema ---
+.DS_Store
+Thumbs.db

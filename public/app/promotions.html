@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>window.PG_BASE='/publishgo';</script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Promoções — Publish Go</title>
+    <link rel="icon" href="/publishgo/favicon.ico" />
+    <meta name="theme-color" content="#F5A623" />
+    <link rel="manifest" href="/publishgo/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } };</script>
+    <link rel="stylesheet" href="/publishgo/assets/css/app.css?v=202606041800" />
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+    <style>[x-cloak]{display:none!important}</style>
+</head>
+<body class="min-h-screen">
+<div class="flex min-h-screen" x-data="promoPage()" x-init="init()">
+    <div id="shell-aside"></div>
+    <div class="flex-1 min-w-0 flex flex-col">
+        <div id="shell-top"></div>
+        <main class="flex-1 p-4 lg:p-8 space-y-6">
+
+            <div class="flex items-center gap-2 flex-wrap">
+                <button @click="tab='coupons'" :class="tab==='coupons'?'pg-btn-primary':'pg-btn-ghost'" class="pg-btn !py-2 text-sm">Cupons</button>
+                <button @click="tab='promotions'" :class="tab==='promotions'?'pg-btn-primary':'pg-btn-ghost'" class="pg-btn !py-2 text-sm">Promoções</button>
+                <div class="flex-1"></div>
+                <button x-show="tab==='coupons' && allowCoupons" @click="openCoupon()" class="pg-btn pg-btn-primary !py-2 text-sm"><span x-html="PG.icon('plus','w-4 h-4')"></span> Novo cupom</button>
+                <button x-show="tab==='promotions' && allowPromos" @click="openPromo()" class="pg-btn pg-btn-primary !py-2 text-sm"><span x-html="PG.icon('plus','w-4 h-4')"></span> Nova promoção</button>
+            </div>
+
+            <!-- Upsell quando o plano não permite -->
+            <div x-show="tab==='coupons' && !allowCoupons" class="pg-card p-8 text-center" style="display:none">
+                <div class="text-4xl mb-2">🔒</div><h3 class="font-bold text-lg">Cupons não disponíveis no seu plano</h3>
+                <p class="text-sm mt-1" style="color:var(--pg-muted)">Faça upgrade para Pro ou Enterprise para criar cupons de desconto.</p>
+            </div>
+            <div x-show="tab==='promotions' && !allowPromos" class="pg-card p-8 text-center" style="display:none">
+                <div class="text-4xl mb-2">🔒</div><h3 class="font-bold text-lg">Promoções não disponíveis no seu plano</h3>
+                <p class="text-sm mt-1" style="color:var(--pg-muted)">Faça upgrade para Pro ou Enterprise para criar promoções.</p>
+            </div>
+
+            <!-- CUPONS -->
+            <section x-show="tab==='coupons' && allowCoupons" class="pg-card overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead><tr class="text-left" style="color:var(--pg-muted)"><th class="px-5 py-3 font-medium">Código</th><th class="px-3 py-3 font-medium">Tipo</th><th class="px-3 py-3 font-medium">Valor</th><th class="px-3 py-3 font-medium">Usos</th><th class="px-3 py-3 font-medium">Status</th><th class="px-5 py-3 font-medium text-right">Ações</th></tr></thead>
+                        <tbody>
+                            <template x-for="c in coupons" :key="c.id">
+                                <tr class="border-t" style="border-color:var(--pg-border)">
+                                    <td class="px-5 py-3 font-bold" x-text="c.code"></td>
+                                    <td class="px-3 py-3" x-text="typeLabel(c.type)"></td>
+                                    <td class="px-3 py-3" x-text="c.type==='percent'?(c.value+'%'):(c.type==='fixed'?PG.fmt.money(c.value):'—')"></td>
+                                    <td class="px-3 py-3"><span x-text="c.uses"></span><span x-show="c.max_uses" x-text="'/'+c.max_uses"></span></td>
+                                    <td class="px-3 py-3"><span class="pg-badge" :class="c.is_active?'st-delivered':'st-canceled'" x-text="c.is_active?'Ativo':'Inativo'"></span></td>
+                                    <td class="px-5 py-3 text-right"><button @click="openCoupon(c)" class="pg-btn pg-btn-ghost !py-1.5 text-xs">Editar</button> <button @click="delCoupon(c)" class="pg-btn pg-btn-ghost !py-1.5 text-xs">Excluir</button></td>
+                                </tr>
+                            </template>
+                            <template x-if="coupons.length===0"><tr><td colspan="6" class="p-10 text-center" style="color:var(--pg-muted)">Nenhum cupom ainda.</td></tr></template>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- PROMOÇÕES -->
+            <section x-show="tab==='promotions' && allowPromos" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4" style="display:none">
+                <template x-for="p in promotions" :key="p.id">
+                    <div class="pg-card overflow-hidden">
+                        <div class="p-4 text-white" style="background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))">
+                            <div class="text-xs font-semibold opacity-90">PROMOÇÃO</div>
+                            <div class="font-extrabold text-lg" x-text="p.title"></div>
+                            <div class="text-sm opacity-90" x-text="p.type==='percent'?(p.value+'% OFF'):(PG.fmt.money(p.value)+' OFF')"></div>
+                        </div>
+                        <div class="p-4">
+                            <p class="text-sm" style="color:var(--pg-muted)" x-text="p.description"></p>
+                            <div class="mt-3 flex items-center justify-between">
+                                <span class="pg-badge" :class="p.is_active?'st-delivered':'st-canceled'" x-text="p.is_active?'Ativa':'Inativa'"></span>
+                                <div><button @click="openPromo(p)" class="pg-btn pg-btn-ghost !py-1.5 text-xs">Editar</button> <button @click="delPromo(p)" class="pg-btn pg-btn-ghost !py-1.5 text-xs">Excluir</button></div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                <div x-show="promotions.length===0" class="text-sm col-span-full text-center py-10" style="color:var(--pg-muted)">Nenhuma promoção ainda.</div>
+            </section>
+        </main>
+    </div>
+</div>
+
+<!-- Modal cupom -->
+<div x-data x-show="$store.promo.coupon" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style="display:none">
+    <div class="absolute inset-0 bg-black/50" @click="$store.promo.coupon=false"></div>
+    <div class="relative w-full sm:max-w-md pg-card p-6 pg-pop rounded-b-none sm:rounded-2xl" x-data="couponModal()" x-effect="$store.promo.coupon && boot()">
+        <div class="flex items-center justify-between mb-4"><h2 class="text-xl font-bold" x-text="f.id?'Editar cupom':'Novo cupom'"></h2><button @click="$store.promo.coupon=false" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('close')"></button></div>
+        <form @submit.prevent="save()" class="space-y-3">
+            <div><label class="text-sm font-medium">Código</label><input x-model="f.code" required class="pg-input mt-1 uppercase" placeholder="EX: BEMVINDO10" /></div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="text-sm font-medium">Tipo</label><select x-model="f.type" class="pg-input mt-1"><option value="percent">Percentual (%)</option><option value="fixed">Valor fixo (R$)</option><option value="free_shipping">Frete grátis</option></select></div>
+                <div x-show="f.type!=='free_shipping'"><label class="text-sm font-medium">Valor</label><input x-model="f.value" type="number" step="0.01" class="pg-input mt-1" /></div>
+                <div><label class="text-sm font-medium">Pedido mínimo (R$)</label><input x-model="f.min_order" type="number" step="0.01" class="pg-input mt-1" /></div>
+                <div><label class="text-sm font-medium">Usos máx. (opcional)</label><input x-model="f.max_uses" type="number" class="pg-input mt-1" /></div>
+                <div><label class="text-sm font-medium">Expira em</label><input x-model="f.expires_at" type="date" class="pg-input mt-1" /></div>
+                <div class="flex items-end"><label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="f.is_active" /> Ativo</label></div>
+            </div>
+            <button type="submit" :disabled="saving" class="pg-btn pg-btn-primary w-full"><span x-show="!saving">Salvar</span><svg x-show="saving" class="pg-ring-spin w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg></button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal promoção -->
+<div x-data x-show="$store.promo.promo" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style="display:none">
+    <div class="absolute inset-0 bg-black/50" @click="$store.promo.promo=false"></div>
+    <div class="relative w-full sm:max-w-md pg-card p-6 pg-pop rounded-b-none sm:rounded-2xl" x-data="promoModal()" x-effect="$store.promo.promo && boot()">
+        <div class="flex items-center justify-between mb-4"><h2 class="text-xl font-bold" x-text="f.id?'Editar promoção':'Nova promoção'"></h2><button @click="$store.promo.promo=false" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('close')"></button></div>
+        <form @submit.prevent="save()" class="space-y-3">
+            <div><label class="text-sm font-medium">Título</label><input x-model="f.title" required class="pg-input mt-1" /></div>
+            <div><label class="text-sm font-medium">Descrição</label><input x-model="f.description" class="pg-input mt-1" /></div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="text-sm font-medium">Tipo</label><select x-model="f.type" class="pg-input mt-1"><option value="percent">Percentual (%)</option><option value="fixed">Valor fixo (R$)</option></select></div>
+                <div><label class="text-sm font-medium">Valor</label><input x-model="f.value" type="number" step="0.01" class="pg-input mt-1" /></div>
+            </div>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="f.is_active" /> Ativa</label>
+            <button type="submit" :disabled="saving" class="pg-btn pg-btn-primary w-full"><span x-show="!saving">Salvar</span><svg x-show="saving" class="pg-ring-spin w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg></button>
+        </form>
+    </div>
+</div>
+
+<script src="/publishgo/assets/js/app.js?v=202606041800"></script>
+<script>
+document.addEventListener('alpine:init', () => Alpine.store('promo', { coupon:false, promo:false, editing:null }));
+function promoPage(){
+    return {
+        tab:'coupons', allowCoupons:true, allowPromos:true, coupons:[], promotions:[],
+        typeLabel(t){ return {percent:'Percentual',fixed:'Valor fixo',free_shipping:'Frete grátis'}[t]||t; },
+        async init(){ if(!PG.requireAuth())return; PG.mountShell('tag'); PG.applyBrand(PG.auth.company);
+            try{ const lim=await PG.api.get('/catalog/limits'); this.allowCoupons=!!lim.limits.allow_coupons; this.allowPromos=!!lim.limits.allow_promotions; }catch(e){}
+            this.loadAll();
+            window.addEventListener('pg-promo-reload', ()=>this.loadAll());
+        },
+        async loadAll(){
+            if(this.allowCoupons){ try{ this.coupons=await PG.api.get('/coupons'); }catch(e){} }
+            if(this.allowPromos){ try{ this.promotions=await PG.api.get('/promotions'); }catch(e){} }
+        },
+        openCoupon(c=null){ Alpine.store('promo').editing=c?JSON.parse(JSON.stringify(c)):null; Alpine.store('promo').coupon=true; },
+        openPromo(p=null){ Alpine.store('promo').editing=p?JSON.parse(JSON.stringify(p)):null; Alpine.store('promo').promo=true; },
+        async delCoupon(c){ if(!confirm('Excluir cupom '+c.code+'?'))return; try{ await PG.api.del('/coupons/'+c.id); PG.toast('Excluído.','success'); this.loadAll(); }catch(e){ PG.toast(e.message,'error'); } },
+        async delPromo(p){ if(!confirm('Excluir promoção?'))return; try{ await PG.api.del('/promotions/'+p.id); PG.toast('Excluída.','success'); this.loadAll(); }catch(e){ PG.toast(e.message,'error'); } },
+    };
+}
+function couponModal(){
+    return {
+        saving:false, _id:null, f:{ id:null,code:'',type:'percent',value:10,min_order:0,max_uses:'',expires_at:'',is_active:true },
+        boot(){ const ed=Alpine.store('promo').editing; const key=ed?ed.id:'new'; if(this._id===key)return; this._id=key;
+            this.f = ed? {id:ed.id,code:ed.code,type:ed.type,value:ed.value,min_order:ed.min_order,max_uses:ed.max_uses??'',expires_at:(ed.expires_at||'').slice(0,10),is_active:!!ed.is_active}
+                       : {id:null,code:'',type:'percent',value:10,min_order:0,max_uses:'',expires_at:'',is_active:true}; },
+        async save(){ this.saving=true;
+            const body={ code:this.f.code.toUpperCase(),type:this.f.type,value:parseFloat(this.f.value||0),min_order:parseFloat(this.f.min_order||0),max_uses:this.f.max_uses===''?null:parseInt(this.f.max_uses),expires_at:this.f.expires_at||null,is_active:this.f.is_active?1:0 };
+            try{ if(this.f.id){ await PG.api.put('/coupons/'+this.f.id,body); } else { await PG.api.post('/coupons',body); }
+                 PG.toast('Cupom salvo. ✅','success'); Alpine.store('promo').coupon=false; window.dispatchEvent(new Event('pg-promo-reload'));
+            }catch(e){ const d=e.details?Object.values(e.details).flat()[0]:null; PG.toast(d||e.message,'error'); } finally{ this.saving=false; }
+        },
+    };
+}
+function promoModal(){
+    return {
+        saving:false, _id:null, f:{ id:null,title:'',description:'',type:'percent',value:10,is_active:true },
+        boot(){ const ed=Alpine.store('promo').editing; const key=ed?ed.id:'new'; if(this._id===key)return; this._id=key;
+            this.f = ed? {id:ed.id,title:ed.title,description:ed.description||'',type:ed.type,value:ed.value,is_active:!!ed.is_active} : {id:null,title:'',description:'',type:'percent',value:10,is_active:true}; },
+        async save(){ this.saving=true;
+            const body={ title:this.f.title,description:this.f.description,type:this.f.type,value:parseFloat(this.f.value||0),scope:'all',is_active:this.f.is_active?1:0 };
+            try{ if(this.f.id){ await PG.api.put('/promotions/'+this.f.id,body); } else { await PG.api.post('/promotions',body); }
+                 PG.toast('Promoção salva. ✅','success'); Alpine.store('promo').promo=false; window.dispatchEvent(new Event('pg-promo-reload'));
+            }catch(e){ const d=e.details?Object.values(e.details).flat()[0]:null; PG.toast(d||e.message,'error'); } finally{ this.saving=false; }
+        },
+    };
+}
+</script>
+</body>
+</html>

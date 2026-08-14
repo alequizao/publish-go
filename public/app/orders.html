@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>window.PG_BASE='/publishgo';</script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Pedidos — Publish Go</title>
+    <link rel="icon" href="/publishgo/favicon.ico" />
+    <meta name="theme-color" content="#F5A623" />
+    <link rel="manifest" href="/publishgo/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } };</script>
+    <link rel="stylesheet" href="/publishgo/assets/css/app.css?v=202606041800" />
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+<body class="min-h-screen">
+<div class="pg-aurora"></div>
+<div class="flex min-h-screen" x-data="ordersPage()" x-init="init()">
+    <div id="shell-aside"></div>
+    <div class="flex-1 min-w-0 flex flex-col">
+        <div id="shell-top"></div>
+        <main class="flex-1 p-4 lg:p-8 space-y-5">
+
+            <!-- Barra de ações -->
+            <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
+                <div class="relative flex-1">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2" style="color:var(--pg-muted)" x-html="PG.icon('search','w-5 h-5')"></span>
+                    <input x-model.debounce.300ms="search" @input="load()" class="pg-input !pl-10" placeholder="Buscar por cliente, código ou endereço..." />
+                </div>
+                <div class="flex gap-2 overflow-x-auto no-scrollbar">
+                    <template x-for="f in filters" :key="f.key">
+                        <button @click="setFilter(f.key)" :class="filter===f.key ? 'pg-btn-primary' : 'pg-btn-ghost'" class="pg-btn !py-2 text-sm whitespace-nowrap" x-text="f.label"></button>
+                    </template>
+                </div>
+                <button @click="openCreate()" class="pg-btn pg-btn-primary whitespace-nowrap">
+                    <span x-html="PG.icon('plus','w-5 h-5')"></span> Novo pedido
+                </button>
+            </div>
+
+            <!-- Lista -->
+            <div class="grid gap-3">
+                <template x-if="loading">
+                    <div class="space-y-3"><div class="pg-skel h-24"></div><div class="pg-skel h-24"></div><div class="pg-skel h-24"></div></div>
+                </template>
+                <template x-for="o in orders" :key="o.id">
+                    <div class="pg-card p-4 flex flex-col lg:flex-row lg:items-center gap-4 pg-enter">
+                        <div class="flex items-center gap-3 lg:w-64 shrink-0">
+                            <div class="w-12 h-12 rounded-xl grid place-items-center font-bold text-white shrink-0" style="background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))" x-text="'#'+o.code"></div>
+                            <div class="min-w-0">
+                                <div class="font-semibold truncate" x-text="o.customer_name"></div>
+                                <div class="text-xs" style="color:var(--pg-muted)" x-text="PG.fmt.timeAgo(o.created_at) + ' atrás'"></div>
+                            </div>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="text-sm truncate" x-text="o.address"></div>
+                            <div class="flex items-center gap-2 mt-1 flex-wrap">
+                                <span class="pg-badge" :class="'st-'+o.status" x-text="PG.STATUS_LABELS[o.status]"></span>
+                                <span class="text-xs px-2 py-0.5 rounded-full" :class="priorityClass(o.priority)" x-text="PG.PRIORITY_LABELS[o.priority]"></span>
+                                <span class="text-xs" style="color:var(--pg-muted)" x-text="o.district"></span>
+                                <span class="text-xs uppercase tracking-wide" style="color:var(--pg-muted)" x-text="o.source"></span>
+                            </div>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <div class="font-extrabold text-lg" x-text="PG.fmt.money(o.total)"></div>
+                            <div class="text-xs" style="color:var(--pg-muted)" x-text="o.payment_method.toUpperCase()"></div>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <select @change="changeStatus(o, $event.target.value)" class="pg-input !py-1.5 !px-2 text-sm !w-auto">
+                                <template x-for="st in statusOptions" :key="st">
+                                    <option :value="st" :selected="o.status===st" x-text="PG.STATUS_LABELS[st]"></option>
+                                </template>
+                            </select>
+                            <a :href="'/publishgo/app/deliveries.html?order='+o.id" class="pg-btn pg-btn-ghost !p-2" title="Despachar" x-html="PG.icon('map','w-4 h-4')"></a>
+                            <button @click="cancel(o)" x-show="o.status!=='delivered' && o.status!=='canceled'" class="pg-btn pg-btn-ghost !p-2" title="Cancelar" x-html="PG.icon('close','w-4 h-4')"></button>
+                        </div>
+                    </div>
+                </template>
+                <div x-show="!loading && orders.length===0" class="pg-card p-12 text-center" style="color:var(--pg-muted)">
+                    <div class="text-5xl mb-3">🍽️</div>
+                    <p class="font-semibold">Nenhum pedido encontrado</p>
+                    <p class="text-sm mt-1">Crie o primeiro pedido para começar.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Modal: novo pedido -->
+<div x-data x-show="$store.modal.open" x-cloak @keydown.escape.window="$store.modal.open=false"
+     class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style="display:none">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="$store.modal.open=false"></div>
+    <div class="relative w-full sm:max-w-lg pg-card p-6 max-h-[92vh] overflow-y-auto pg-pop rounded-b-none sm:rounded-2xl" x-data="createForm()">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold">Novo pedido</h2>
+            <button @click="$store.modal.open=false" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('close')"></button>
+        </div>
+        <form @submit.prevent="submit()" class="space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+                <div class="col-span-2"><label class="text-sm font-medium">Cliente</label><input x-model="f.customer_name" required class="pg-input mt-1" placeholder="Nome do cliente" /></div>
+                <div><label class="text-sm font-medium">Telefone</label><input x-model="f.customer_phone" class="pg-input mt-1" placeholder="(11) 90000-0000" /></div>
+                <div><label class="text-sm font-medium">Bairro</label><input x-model="f.district" class="pg-input mt-1" placeholder="Centro" /></div>
+                <div class="col-span-2"><label class="text-sm font-medium">Endereço</label><input x-model="f.address" required class="pg-input mt-1" placeholder="Rua, número" /></div>
+                <div><label class="text-sm font-medium">Latitude</label><input x-model="f.lat" type="number" step="any" class="pg-input mt-1" placeholder="-23.56" /></div>
+                <div><label class="text-sm font-medium">Longitude</label><input x-model="f.lng" type="number" step="any" class="pg-input mt-1" placeholder="-46.65" /></div>
+                <div><label class="text-sm font-medium">Prioridade</label>
+                    <select x-model="f.priority" class="pg-input mt-1"><option value="low">Baixa</option><option value="normal" selected>Normal</option><option value="high">Alta</option><option value="urgent">Urgente</option></select>
+                </div>
+                <div><label class="text-sm font-medium">Pagamento</label>
+                    <select x-model="f.payment_method" class="pg-input mt-1"><option value="pix">PIX</option><option value="card">Cartão</option><option value="cash">Dinheiro</option><option value="online">Online</option></select>
+                </div>
+                <div><label class="text-sm font-medium">Taxa entrega</label><input x-model="f.delivery_fee" type="number" step="0.01" class="pg-input mt-1" placeholder="7.90" /></div>
+            </div>
+
+            <div>
+                <label class="text-sm font-medium">Itens</label>
+                <div class="space-y-2 mt-1">
+                    <template x-for="(it, i) in f.items" :key="i">
+                        <div class="flex gap-2">
+                            <input x-model="it.name" class="pg-input flex-1" placeholder="Produto" />
+                            <input x-model.number="it.quantity" type="number" min="1" class="pg-input !w-16" placeholder="Qt" />
+                            <input x-model.number="it.unit_price" type="number" step="0.01" class="pg-input !w-24" placeholder="R$" />
+                            <button type="button" @click="f.items.splice(i,1)" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('close','w-4 h-4')"></button>
+                        </div>
+                    </template>
+                </div>
+                <button type="button" @click="f.items.push({name:'',quantity:1,unit_price:0})" class="text-sm mt-2" style="color:var(--pg-primary)">+ Adicionar item</button>
+            </div>
+
+            <div><label class="text-sm font-medium">Observações</label><textarea x-model="f.notes" rows="2" class="pg-input mt-1" placeholder="Sem cebola, troco para R$50..."></textarea></div>
+
+            <div class="flex items-center justify-between pt-2">
+                <div class="text-sm" style="color:var(--pg-muted)">Total: <b class="text-base" style="color:var(--pg-text)" x-text="PG.fmt.money(total)"></b></div>
+                <button type="submit" :disabled="saving" class="pg-btn pg-btn-primary">
+                    <span x-show="!saving">Criar pedido</span>
+                    <svg x-show="saving" class="pg-ring-spin w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="/publishgo/assets/js/app.js?v=202606041800"></script>
+<script src="/publishgo/assets/js/realtime.js?v=202606041800"></script>
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.store('modal', { open: false });
+});
+function ordersPage() {
+    return {
+        loading: true, orders: [], search: '', filter: 'all',
+        statusOptions: ['received','preparing','ready','dispatched','picked','delivered','canceled'],
+        filters: [
+            { key: 'all', label: 'Todos' }, { key: 'active', label: 'Ativos' },
+            { key: 'received', label: 'Recebidos' }, { key: 'preparing', label: 'Preparo' },
+            { key: 'ready', label: 'Prontos' }, { key: 'delivered', label: 'Entregues' },
+        ],
+        async init() {
+            if (this.$el && this.$el._pgInit) return; if (this.$el) this.$el._pgInit = true;
+            if (!PG.requireAuth()) return;
+            PG.mountShell('orders');
+            PG.applyBrand(PG.auth.company);
+            await this.load();
+            PG.realtime.on('order.created', () => { PG.playChime(); this.load(); });
+            PG.realtime.on('order.status', () => this.load());
+            PG.realtime.on('order.updated', () => this.load());
+            PG.realtime.on('poll', () => this.load());
+            PG.realtime.connect();
+        },
+        setFilter(k) { this.filter = k; this.load(); },
+        priorityClass(p) {
+            return { low:'bg-slate-500/15 text-slate-400', normal:'bg-slate-500/15', high:'bg-amber-500/15 text-amber-500', urgent:'bg-rose-500/15 text-rose-500' }[p] || '';
+        },
+        async load() {
+            try {
+                let q = '/orders?';
+                if (this.filter === 'active') q += 'active=1&';
+                else if (this.filter !== 'all') q += 'status=' + this.filter + '&';
+                if (this.search) q += 'search=' + encodeURIComponent(this.search);
+                this.orders = await PG.api.get(q);
+            } catch (e) { PG.toast(e.message, 'error'); }
+            finally { this.loading = false; }
+        },
+        async changeStatus(o, status) {
+            if (status === o.status) return;
+            try { await PG.api.patch('/orders/'+o.id+'/status', { status }); PG.toast('Status atualizado.', 'success'); this.load(); }
+            catch (e) { PG.toast(e.message, 'error'); this.load(); }
+        },
+        async cancel(o) {
+            if (!confirm('Cancelar o pedido #' + o.code + '?')) return;
+            try { await PG.api.del('/orders/'+o.id); PG.toast('Pedido cancelado.', 'warn'); this.load(); }
+            catch (e) { PG.toast(e.message, 'error'); }
+        },
+        openCreate() { Alpine.store('modal').open = true; },
+    };
+}
+function createForm() {
+    return {
+        saving: false,
+        f: { customer_name:'', customer_phone:'', district:'', address:'', lat:'', lng:'', priority:'normal', payment_method:'pix', delivery_fee:7.90, notes:'', items:[{name:'',quantity:1,unit_price:0}] },
+        get total() {
+            const items = this.f.items.reduce((s,i)=> s + (Number(i.unit_price)||0)*(Number(i.quantity)||0), 0);
+            return items + (Number(this.f.delivery_fee)||0);
+        },
+        async submit() {
+            this.saving = true;
+            try {
+                const payload = { ...this.f };
+                ['lat','lng','delivery_fee'].forEach(k => { payload[k] = payload[k] === '' ? undefined : Number(payload[k]); });
+                payload.items = payload.items.filter(i => i.name);
+                await PG.api.post('/orders', payload);
+                PG.toast('Pedido criado com sucesso! 🎉', 'success');
+                Alpine.store('modal').open = false;
+                this.f.customer_name=''; this.f.address=''; this.f.items=[{name:'',quantity:1,unit_price:0}]; this.f.notes='';
+            } catch (e) {
+                const det = e.details ? Object.values(e.details).flat()[0] : null;
+                PG.toast(det || e.message, 'error');
+            } finally { this.saving = false; }
+        },
+    };
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>window.PG_BASE='/publishgo';</script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Configurações — Publish Go</title>
+    <link rel="icon" href="/publishgo/favicon.ico" />
+    <meta name="theme-color" content="#F5A623" />
+    <link rel="manifest" href="/publishgo/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } };</script>
+    <link rel="stylesheet" href="/publishgo/assets/css/app.css?v=202606041800" />
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+<body class="min-h-screen">
+<div class="pg-aurora"></div>
+<div class="flex min-h-screen" x-data="settingsPage()" x-init="init()">
+    <div id="shell-aside"></div>
+    <div class="flex-1 min-w-0 flex flex-col">
+        <div id="shell-top"></div>
+        <main class="flex-1 p-4 lg:p-8">
+            <div class="max-w-4xl mx-auto space-y-6">
+
+                <form @submit.prevent="save()" class="space-y-6">
+                    <!-- Identidade -->
+                    <section class="pg-card p-6">
+                        <h2 class="font-bold text-lg mb-1">Identidade da marca (Whitelabel)</h2>
+                        <p class="text-sm mb-5" style="color:var(--pg-muted)">Personalize como o painel aparece para sua equipe.</p>
+
+                        <div class="flex flex-col sm:flex-row gap-6 items-start">
+                            <div class="text-center">
+                                <div class="w-28 h-28 rounded-2xl grid place-items-center overflow-hidden mb-2" style="background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))">
+                                    <img x-show="f.logo_url" :src="f.logo_url" class="w-full h-full object-cover" />
+                                    <span x-show="!f.logo_url" class="text-white text-3xl font-extrabold" x-text="(f.name||'PG').slice(0,2).toUpperCase()"></span>
+                                </div>
+                                <label class="pg-btn pg-btn-ghost !py-1.5 text-xs cursor-pointer">
+                                    <span x-show="!uploading">Trocar logo</span><span x-show="uploading">Enviando…</span>
+                                    <input type="file" accept="image/*" class="hidden" @change="uploadLogo($event)" />
+                                </label>
+                            </div>
+                            <div class="flex-1 grid sm:grid-cols-2 gap-4 w-full">
+                                <div class="sm:col-span-2"><label class="text-sm font-medium">Nome do estabelecimento</label><input x-model="f.name" class="pg-input mt-1" /></div>
+                                <div><label class="text-sm font-medium">Telefone</label><input x-model="f.phone" class="pg-input mt-1" /></div>
+                                <div><label class="text-sm font-medium">CNPJ/CPF</label><input x-model="f.document" class="pg-input mt-1" /></div>
+                                <div>
+                                    <label class="text-sm font-medium">Cor primária</label>
+                                    <div class="flex gap-2 mt-1"><input type="color" x-model="f.primary_color" class="h-11 w-14 rounded-lg border-0 bg-transparent cursor-pointer" /><input x-model="f.primary_color" class="pg-input" /></div>
+                                </div>
+                                <div>
+                                    <label class="text-sm font-medium">Cor de destaque</label>
+                                    <div class="flex gap-2 mt-1"><input type="color" x-model="f.accent_color" class="h-11 w-14 rounded-lg border-0 bg-transparent cursor-pointer" /><input x-model="f.accent_color" class="pg-input" /></div>
+                                </div>
+                                <div>
+                                    <label class="text-sm font-medium">Subdomínio / URL</label>
+                                    <div class="flex items-center mt-1">
+                                        <input x-model="f.subdomain" class="pg-input !rounded-r-none" placeholder="minha-loja" />
+                                        <span class="px-3 py-[0.7rem] text-sm rounded-r-xl border border-l-0" style="border-color:var(--pg-border);color:var(--pg-muted);background:color-mix(in srgb,var(--pg-text) 5%,transparent)">.publishgo</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-sm font-medium">Link da sua loja (clique para abrir)</label>
+                                    <a :href="storeUrl" target="_blank" rel="noopener" class="mt-1 flex items-center justify-between gap-2 pg-input hover:shadow-sm transition" style="text-decoration:none">
+                                        <span class="truncate" style="color:var(--pg-primary)" x-text="storeFriendly"></span>
+                                        <span class="shrink-0" style="color:var(--pg-primary)" x-html="PG.icon('external','w-4 h-4')"></span>
+                                    </a>
+                                </div>
+                                <div>
+                                    <label class="text-sm font-medium">Tema</label>
+                                    <select x-model="f.theme" class="pg-input mt-1"><option value="dark">Escuro</option><option value="light">Claro</option><option value="system">Sistema</option></select>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Operação / financeiro -->
+                    <section class="pg-card p-6">
+                        <h2 class="font-bold text-lg mb-1">Operação & Financeiro</h2>
+                        <p class="text-sm mb-5" style="color:var(--pg-muted)">Localização do estabelecimento (centraliza o mapa) e regras de repasse.</p>
+                        <div class="grid sm:grid-cols-2 gap-4">
+                            <div class="sm:col-span-2"><label class="text-sm font-medium">Endereço</label><input x-model="f.address" class="pg-input mt-1" placeholder="Rua, número - bairro, cidade" /></div>
+                            <div><label class="text-sm font-medium">Latitude</label><input x-model="f.lat" type="number" step="any" class="pg-input mt-1" placeholder="-9.66" /></div>
+                            <div><label class="text-sm font-medium">Longitude</label><input x-model="f.lng" type="number" step="any" class="pg-input mt-1" placeholder="-35.71" /></div>
+                            <div><label class="text-sm font-medium">Taxa de entrega (R$)</label><input x-model="f.delivery_fee" type="number" step="0.01" class="pg-input mt-1" /></div>
+                            <div><label class="text-sm font-medium">Comissão do motoboy (%)</label><input x-model="f.courier_commission" type="number" step="0.1" min="0" max="100" class="pg-input mt-1" /></div>
+                        </div>
+                        <button type="button" @click="geolocate()" class="text-sm mt-3" style="color:var(--pg-primary)">📍 Usar minha localização atual</button>
+                    </section>
+
+                    <div class="flex items-center justify-between sticky bottom-4">
+                        <span class="text-sm" style="color:var(--pg-muted)" x-show="plan">Plano: <b style="color:var(--pg-text)" x-text="plan"></b></span>
+                        <button type="submit" :disabled="saving" class="pg-btn pg-btn-primary shadow-lg">
+                            <span x-show="!saving">Salvar alterações</span>
+                            <svg x-show="saving" class="pg-ring-spin w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script src="/publishgo/assets/js/app.js?v=202606041800"></script>
+<script>
+function settingsPage() {
+    return {
+        saving: false, uploading: false, plan: '',
+        f: { name:'', phone:'', document:'', logo_url:'', primary_color:'#ef4444', accent_color:'#f59e0b', subdomain:'', theme:'dark', address:'', lat:'', lng:'', delivery_fee:0, courier_commission:80 },
+        get storeUrl() { return PG.url('/loja/' + (PG.auth.company?.slug || '')); },
+        get storeFriendly() { return 'publishdev.com.br/publishgo/loja/' + (PG.auth.company?.slug || ''); },
+        async init() {
+            if (this.$el && this.$el._pgInit) return; if (this.$el) this.$el._pgInit = true;
+            if (!PG.requireAuth()) return;
+            PG.mountShell('cog');
+            PG.applyBrand(PG.auth.company);
+            try {
+                const c = await PG.api.get('/company');
+                this.plan = (c.plan||'').toUpperCase();
+                Object.keys(this.f).forEach(k => { if (c[k] !== undefined && c[k] !== null) this.f[k] = c[k]; });
+            } catch (e) { PG.toast(e.message, 'error'); }
+            // Preview ao vivo das cores
+            this.$watch('f.primary_color', v => document.documentElement.style.setProperty('--pg-primary', v));
+            this.$watch('f.accent_color', v => document.documentElement.style.setProperty('--pg-accent', v));
+        },
+        async uploadLogo(e) {
+            const file = e.target.files[0]; if (!file) return;
+            this.uploading = true;
+            try {
+                const fd = new FormData(); fd.append('file', file);
+                const res = await fetch(PG.url('/api/upload'), { method:'POST', headers:{ 'Authorization':'Bearer '+PG.auth.token }, body: fd });
+                const json = await res.json();
+                if (!json.ok) throw json.error;
+                this.f.logo_url = json.data.url;
+                PG.toast('Logo enviada!', 'success');
+            } catch (err) { PG.toast(err.message || 'Falha no upload.', 'error'); }
+            finally { this.uploading = false; }
+        },
+        geolocate() {
+            if (!navigator.geolocation) return PG.toast('Geolocalização indisponível.', 'warn');
+            navigator.geolocation.getCurrentPosition(p => {
+                this.f.lat = +p.coords.latitude.toFixed(6); this.f.lng = +p.coords.longitude.toFixed(6);
+                PG.toast('Localização capturada.', 'success');
+            }, () => PG.toast('Não foi possível obter a localização.', 'error'));
+        },
+        async save() {
+            this.saving = true;
+            try {
+                const payload = { ...this.f };
+                ['lat','lng','delivery_fee','courier_commission'].forEach(k => payload[k] = payload[k]==='' ? undefined : Number(payload[k]));
+                const updated = await PG.api.put('/company', payload);
+                // Atualiza a sessão para refletir marca nova
+                const auth = PG.auth.data; auth.company = { ...auth.company, ...updated }; PG.auth.set(auth);
+                PG.applyBrand(updated);
+                PG.toast('Configurações salvas! ✅', 'success');
+            } catch (e) {
+                const det = e.details ? Object.values(e.details).flat()[0] : null;
+                PG.toast(det || e.message, 'error');
+            } finally { this.saving = false; }
+        },
+    };
+}
+</script>
+</body>
+</html>

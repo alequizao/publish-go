@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>window.PG_BASE='/publishgo';</script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <title>Publish Go — Motoboy</title>
+    <link rel="icon" href="/publishgo/favicon.ico" />
+    <meta name="theme-color" content="#F5A623" />
+    <link rel="manifest" href="/publishgo/manifest.json" />
+    <link rel="apple-touch-icon" href="/publishgo/assets/icons/icon-192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } };</script>
+    <link rel="stylesheet" href="/publishgo/assets/css/app.css?v=202606041800" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+<body class="min-h-screen">
+<div class="pg-aurora"></div>
+
+<!-- ───────── LOGIN ───────── -->
+<div x-data="courierApp()" x-init="init()" class="min-h-screen">
+    <template x-if="!authed">
+        <div class="min-h-screen grid place-items-center p-5">
+            <div class="w-full max-w-sm pg-card p-7 pg-pop">
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 rounded-2xl grid place-items-center text-white text-3xl mx-auto mb-3" style="background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))">🛵</div>
+                    <h1 class="text-2xl font-extrabold">App do Motoboy</h1>
+                    <p class="text-sm mt-1" style="color:var(--pg-muted)">Entre para começar a entregar</p>
+                </div>
+                <form @submit.prevent="login()" class="space-y-4">
+                    <div><label class="text-sm font-medium">Telefone ou e-mail</label><input x-model="loginForm.login" required class="pg-input mt-1" placeholder="(82) 90000-0000" /></div>
+                    <div><label class="text-sm font-medium">Senha</label><input x-model="loginForm.password" type="password" required class="pg-input mt-1" placeholder="••••••" /></div>
+                    <button type="submit" :disabled="busy" class="pg-btn pg-btn-primary w-full">
+                        <span x-show="!busy">Entrar</span>
+                        <svg x-show="busy" class="pg-ring-spin w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg>
+                    </button>
+                    <a :href="PG.url('/app/courier-register.html')" class="block text-center text-sm" style="color:var(--pg-muted)">Não tenho conta — cadastrar →</a>
+                </form>
+            </div>
+        </div>
+    </template>
+
+    <!-- ───────── APP ───────── -->
+    <template x-if="authed">
+        <div class="min-h-screen flex flex-col max-w-lg mx-auto pb-24">
+            <!-- Topbar -->
+            <header class="sticky top-0 z-20 pg-glass px-4 py-3 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full grid place-items-center text-white font-semibold shrink-0" style="background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))" x-text="(me.name||'M').split(' ').map(s=>s[0]).slice(0,2).join('')"></div>
+                <div class="flex-1 min-w-0">
+                    <div class="font-bold truncate" x-text="me.name"></div>
+                    <div class="text-xs" style="color:var(--pg-muted)" x-text="'⭐ '+me.rating+' · '+me.total_deliveries+' entregas'"></div>
+                </div>
+                <button @click="toggleOnline()" :disabled="busy" class="pg-btn !py-1.5 text-sm" :class="online?'pg-btn-primary':'pg-btn-ghost'">
+                    <span class="w-2 h-2 rounded-full" :class="online?'bg-white pg-live':'bg-slate-400'"></span>
+                    <span x-text="online?'Online':'Offline'"></span>
+                </button>
+                <button @click="logout()" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('logout','w-4 h-4')"></button>
+            </header>
+
+            <!-- TAB: Corridas -->
+            <main x-show="tab==='runs'" class="flex-1 p-4 space-y-3">
+                <div x-show="!online" class="pg-card p-6 text-center" style="color:var(--pg-muted)">
+                    <div class="text-4xl mb-2">😴</div><p class="font-semibold">Você está offline</p><p class="text-sm">Fique online para receber corridas.</p>
+                </div>
+                <template x-if="online">
+                    <div class="space-y-3">
+                        <template x-for="d in deliveries" :key="d.id">
+                            <div class="pg-card p-4 pg-pop" :style="d.status==='assigned'?'border-color:var(--pg-primary)':''">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="font-bold">#<span x-text="d.order_code"></span></span>
+                                    <span class="pg-badge" :class="badge(d.status)" x-text="statusLabel(d.status)"></span>
+                                </div>
+                                <div class="font-semibold" x-text="d.customer_name"></div>
+                                <div class="text-sm" style="color:var(--pg-muted)" x-text="d.address"></div>
+                                <div class="flex gap-4 mt-2 text-sm">
+                                    <span>📍 <b x-text="(d.distance_km??'–')"></b> km</span>
+                                    <span>⏱️ <b x-text="(d.eta_minutes??'–')"></b> min</span>
+                                    <span>💰 <b x-text="PG.fmt.money(d.courier_fee)"></b></span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2 mt-3">
+                                    <template x-if="d.status==='assigned'">
+                                        <button @click="act(d,'accept')" class="pg-btn pg-btn-primary">Aceitar</button>
+                                    </template>
+                                    <template x-if="d.status==='assigned'">
+                                        <button @click="act(d,'reject')" class="pg-btn pg-btn-ghost">Rejeitar</button>
+                                    </template>
+                                    <template x-if="d.status==='accepted'">
+                                        <button @click="act(d,'pickup')" class="pg-btn pg-btn-primary col-span-2">Retirei o pedido</button>
+                                    </template>
+                                    <template x-if="d.status==='picked'">
+                                        <button @click="goNavigate(d)" class="pg-btn pg-btn-ghost">🧭 Navegar</button>
+                                    </template>
+                                    <template x-if="d.status==='picked'">
+                                        <button @click="openComplete(d)" class="pg-btn pg-btn-primary">Entreguei ✓</button>
+                                    </template>
+                                    <template x-if="d.status==='accepted' || d.status==='picked'">
+                                        <button @click="openChat(d.id)" class="pg-btn pg-btn-ghost col-span-2 relative">💬 Chat com o estabelecimento<span x-show="chatUnread>0 && chatDeliveryId==d.id" class="absolute top-1 right-2 w-4 h-4 rounded-full text-white text-[10px] grid place-items-center" style="background:var(--pg-primary)" x-text="chatUnread"></span></button>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="deliveries.length===0" class="pg-card p-8 text-center" style="color:var(--pg-muted)">
+                            <div class="text-4xl mb-2">📭</div><p class="font-semibold">Aguardando corridas…</p>
+                            <p class="text-sm">Você receberá um aviso quando chegar um pedido.</p>
+                        </div>
+                    </div>
+                </template>
+            </main>
+
+            <!-- TAB: Mapa -->
+            <main x-show="tab==='map'" class="relative" style="height:calc(100dvh - 8rem);min-height:320px">
+                <div id="cmap" class="w-full h-full"></div>
+                <!-- Banner de navegação (rota in-app) -->
+                <div x-show="nav.active && nav.step" class="absolute top-3 inset-x-3 z-[1000] pg-glass rounded-xl px-4 py-3 flex items-center gap-3" style="display:none">
+                    <span class="text-2xl">🧭</span>
+                    <div class="flex-1 min-w-0"><div class="font-semibold text-sm truncate" x-text="nav.step"></div><div class="text-xs" style="color:var(--pg-muted)"><span x-text="nav.distanceKm"></span> km · <span x-text="nav.etaMin"></span> min até o cliente</div></div>
+                    <button @click="stopNav()" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('close','w-4 h-4')"></button>
+                </div>
+                <div class="absolute bottom-3 inset-x-3 z-[1000] pg-glass rounded-xl px-4 py-2 text-sm flex justify-between items-center">
+                    <span x-text="active ? ('Entrega #'+active.order_code) : 'Sem entrega ativa'"></span>
+                    <button x-show="active && !nav.active" @click="startNav()" class="pg-btn pg-btn-primary !py-1.5 text-xs">🧭 Navegar</button>
+                    <span x-show="active && nav.active">⏱️ <b x-text="(nav.etaMin??active?.eta_minutes??'–')"></b> min</span>
+                </div>
+            </main>
+
+            <!-- TAB: Ganhos -->
+            <main x-show="tab==='earn'" class="flex-1 p-4 space-y-4">
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="pg-card p-4"><div class="text-xs" style="color:var(--pg-muted)">Saldo</div><div class="text-2xl font-extrabold" x-text="PG.fmt.money(earn.balance)"></div></div>
+                    <div class="pg-card p-4"><div class="text-xs" style="color:var(--pg-muted)">Hoje</div><div class="text-2xl font-extrabold text-emerald-500" x-text="PG.fmt.money(earn.today)"></div></div>
+                    <div class="pg-card p-4"><div class="text-xs" style="color:var(--pg-muted)">Últimos 7 dias</div><div class="text-xl font-bold" x-text="PG.fmt.money(earn.week)"></div></div>
+                    <div class="pg-card p-4"><div class="text-xs" style="color:var(--pg-muted)">Ranking</div><div class="text-xl font-bold">#<span x-text="earn.rank"></span></div></div>
+                </div>
+                <button @click="withdraw()" class="pg-btn pg-btn-primary w-full">Solicitar saque</button>
+                <div class="pg-card p-4">
+                    <h3 class="font-bold mb-3">Extrato</h3>
+                    <div class="space-y-2">
+                        <template x-for="t in earn.statement" :key="t.id">
+                            <div class="flex items-center justify-between py-2 border-b" style="border-color:var(--pg-border)">
+                                <div><div class="text-sm font-medium" x-text="t.description||t.type"></div><div class="text-xs" style="color:var(--pg-muted)" x-text="PG.fmt.time(t.created_at)+' · '+(t.created_at||'').slice(0,10)"></div></div>
+                                <span class="font-bold" :class="t.direction==='credit'?'text-emerald-500':'text-rose-500'" x-text="(t.direction==='credit'?'+':'-')+PG.fmt.money(t.amount)"></span>
+                            </div>
+                        </template>
+                        <div x-show="!earn.statement || earn.statement.length===0" class="text-center py-6 text-sm" style="color:var(--pg-muted)">Sem lançamentos ainda.</div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Modal: comprovante de entrega -->
+            <div x-show="completing" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style="display:none">
+                <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="completing=null"></div>
+                <div class="relative w-full sm:max-w-md pg-card p-6 max-h-[92vh] overflow-y-auto pg-pop rounded-b-none sm:rounded-2xl">
+                    <div class="flex items-center justify-between mb-1">
+                        <h2 class="text-xl font-bold">Comprovante de entrega</h2>
+                        <button @click="completing=null" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('close')"></button>
+                    </div>
+                    <p class="text-sm mb-4" style="color:var(--pg-muted)">Pedido #<span x-text="completing?.order_code"></span> · <span x-text="completing?.customer_name"></span></p>
+
+                    <!-- Foto -->
+                    <div class="mb-4">
+                        <label class="text-sm font-medium">Foto da entrega</label>
+                        <div class="mt-1">
+                            <template x-if="pod.photo">
+                                <div class="relative"><img :src="pod.photo" class="w-full h-44 object-cover rounded-xl" /><button type="button" @click="pod.photo='';pod.photo_url=''" class="absolute top-2 right-2 pg-btn pg-glass !p-2" x-html="PG.icon('close','w-4 h-4')"></button></div>
+                            </template>
+                            <template x-if="!pod.photo">
+                                <label class="flex flex-col items-center justify-center h-32 rounded-xl border-2 border-dashed cursor-pointer" style="border-color:var(--pg-border)">
+                                    <span class="text-3xl mb-1">📷</span><span class="text-sm" style="color:var(--pg-muted)">Tirar foto / anexar</span>
+                                    <input type="file" accept="image/*" capture="environment" class="hidden" @change="capturePhoto($event)" />
+                                </label>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div><label class="text-sm font-medium">Quem recebeu</label><input x-model="pod.receiver_name" class="pg-input mt-1" placeholder="Nome de quem recebeu" /></div>
+                        <div><label class="text-sm font-medium">CPF / Documento</label><input x-model="pod.receiver_document" class="pg-input mt-1" inputmode="numeric" placeholder="000.000.000-00" /></div>
+                        <div class="flex items-center gap-2 text-sm p-3 rounded-xl" style="background:color-mix(in srgb,var(--pg-text) 5%,transparent)">
+                            <span x-text="pod.lat ? '📍' : '⏳'"></span>
+                            <span x-show="pod.lat" style="color:var(--pg-muted)">Localização registrada (<span x-text="pod.lat?.toFixed(4)"></span>, <span x-text="pod.lng?.toFixed(4)"></span>)</span>
+                            <span x-show="!pod.lat" style="color:var(--pg-muted)">Capturando localização…</span>
+                            <button type="button" @click="captureGeo()" class="ml-auto text-xs" style="color:var(--pg-primary)">atualizar</button>
+                        </div>
+                    </div>
+
+                    <button @click="finishComplete()" :disabled="podBusy" class="pg-btn pg-btn-primary w-full mt-5">
+                        <span x-show="!podBusy">Confirmar entrega ✓</span>
+                        <svg x-show="podBusy" class="pg-ring-spin w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg>
+                    </button>
+                    <p class="text-xs text-center mt-2" style="color:var(--pg-muted)">A foto e o documento são opcionais, mas recomendados.</p>
+                </div>
+            </div>
+
+            <!-- Chat com o estabelecimento -->
+            <div x-show="chatOpen" x-cloak class="fixed inset-0 z-50 flex flex-col max-w-lg mx-auto" style="display:none">
+                <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="chatOpen=false"></div>
+                <div class="relative mt-auto h-[82vh] pg-card flex flex-col overflow-hidden rounded-b-none pg-pop">
+                    <div class="px-4 py-3 flex items-center gap-3 border-b" style="border-color:var(--pg-border)">
+                        <div class="w-9 h-9 rounded-full grid place-items-center text-white" style="background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))">🏪</div>
+                        <div class="flex-1"><div class="font-bold text-sm" x-text="company.name||'Estabelecimento'"></div><div class="text-xs" style="color:var(--pg-muted)">Chat da entrega</div></div>
+                        <button @click="chatOpen=false" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('close','w-4 h-4')"></button>
+                    </div>
+                    <div id="cChatScroll" class="flex-1 pg-scroll-area p-4 space-y-2">
+                        <template x-for="m in chatMessages" :key="m.id">
+                            <div class="flex" :class="m.sender==='courier'?'justify-end':'justify-start'">
+                                <div class="max-w-[78%] px-3 py-2 rounded-2xl text-sm" :class="m.sender==='courier'?'text-white':''" :style="m.sender==='courier'?'background:var(--pg-primary)':'background:color-mix(in srgb,var(--pg-text) 8%,transparent)'">
+                                    <span x-text="m.body"></span>
+                                    <div class="text-[10px] mt-0.5 opacity-70" x-text="PG.fmt.time(m.created_at)"></div>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="chatMessages.length===0" class="text-center text-sm py-8" style="color:var(--pg-muted)">Nenhuma mensagem ainda. 👋</div>
+                    </div>
+                    <form @submit.prevent="sendChat()" class="p-3 flex gap-2 border-t" style="border-color:var(--pg-border)">
+                        <input x-model="chatInput" class="pg-input" placeholder="Mensagem..." />
+                        <button type="submit" class="pg-btn pg-btn-primary !px-4" x-html="PG.icon('bolt','w-5 h-5')"></button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Bottom nav -->
+            <nav class="fixed bottom-0 inset-x-0 z-30 pg-glass max-w-lg mx-auto flex">
+                <button @click="setTab('runs')" class="flex-1 py-3 flex flex-col items-center gap-1 text-xs" :style="tab==='runs'?'color:var(--pg-primary)':'color:var(--pg-muted)'"><span x-html="PG.icon('orders','w-6 h-6')"></span>Corridas</button>
+                <button @click="setTab('map')" class="flex-1 py-3 flex flex-col items-center gap-1 text-xs" :style="tab==='map'?'color:var(--pg-primary)':'color:var(--pg-muted)'"><span x-html="PG.icon('map','w-6 h-6')"></span>Mapa</button>
+                <button @click="setTab('earn')" class="flex-1 py-3 flex flex-col items-center gap-1 text-xs" :style="tab==='earn'?'color:var(--pg-primary)':'color:var(--pg-muted)'"><span x-html="PG.icon('finance','w-6 h-6')"></span>Ganhos</button>
+            </nav>
+        </div>
+    </template>
+</div>
+
+<script src="/publishgo/assets/js/app.js?v=202606041800"></script>
+<script src="/publishgo/assets/js/map.js?v=202606041800"></script>
+<script>
+const C_STORE = 'pg_courier_auth';
+function courierApp() {
+    return {
+        authed:false, busy:false, online:false, tab:'runs',
+        me:{}, company:{}, deliveries:[], earn:{ statement:[] }, active:null,
+        loginForm:{ login:'', password:'' },
+        map:null, watchId:null, pollTimer:null, lastPos:null,
+        completing:null, podBusy:false, pod:{ receiver_name:'', receiver_document:'', photo:'', photo_url:'', lat:null, lng:null },
+        nav:{ active:false, step:'', distanceKm:null, etaMin:null, last:0 },
+        chatOpen:false, chatDeliveryId:null, chatMessages:[], chatInput:'', chatLastId:0, chatUnread:0, chatTimer:null,
+
+        get token(){ try { return JSON.parse(localStorage.getItem(C_STORE)||'null')?.access_token||null; } catch(e){ return null; } },
+        async api(method, path, body){
+            const headers={ 'Content-Type':'application/json' };
+            if(this.token) headers['Authorization']='Bearer '+this.token;
+            const res=await fetch(PG.url('/api'+path),{ method, headers, body: body!==undefined?JSON.stringify(body):undefined });
+            let json=null; try{ json=await res.json(); }catch(e){}
+            if(res.status===401){ this.logout(); throw { message:'Sessão expirada.' }; }
+            if(!res.ok||(json&&json.ok===false)) throw (json&&json.error)||{ message:'Erro ('+res.status+').' };
+            return json?json.data:null;
+        },
+
+        async init(){
+            const stored = (()=>{ try{ return JSON.parse(localStorage.getItem(C_STORE)||'null'); }catch(e){ return null; } })();
+            if(stored && stored.access_token){
+                this.authed=true; this.me=stored.courier||{}; this.company=stored.company||{};
+                PG.applyBrand(this.company);
+                await this.bootstrap();
+            }
+        },
+        async login(){
+            this.busy=true;
+            try{
+                const data=await PG.api.post('/courier/login', this.loginForm);
+                localStorage.setItem(C_STORE, JSON.stringify(data));
+                this.authed=true; this.me=data.courier; this.company=data.company;
+                PG.applyBrand(this.company);
+                PG.toast('Bem-vindo, '+(data.courier.name.split(' ')[0])+'!','success');
+                await this.bootstrap();
+            }catch(e){ PG.toast(e.message,'error'); }
+            finally{ this.busy=false; }
+        },
+        logout(){ localStorage.removeItem(C_STORE); if(this.watchId)navigator.geolocation.clearWatch(this.watchId); clearInterval(this.pollTimer); this.authed=false; },
+
+        async bootstrap(){
+            try{ this.me=await this.api('GET','/courier/me'); }catch(e){}
+            this.online = this.me.status==='online' || this.me.status==='busy';
+            await this.refresh();
+            this.startGps();
+            this.pollTimer=setInterval(()=>this.refresh(), 4000);
+        },
+        async refresh(){
+            try{
+                this.deliveries = await this.api('GET','/courier/deliveries');
+                this.active = this.deliveries.find(d=>['accepted','picked'].includes(d.status)) || this.deliveries[0] || null;
+                this.earn = await this.api('GET','/courier/earnings');
+                if(this.tab==='map') this.drawMap();
+            }catch(e){}
+        },
+        async toggleOnline(){
+            this.busy=true;
+            try{
+                const next = this.online?'offline':'online';
+                await this.api('PATCH','/courier/status',{ status: next });
+                this.online = next==='online';
+                PG.toast(this.online?'Você está online 🟢':'Você ficou offline','info');
+                this.refresh();
+            }catch(e){ PG.toast(e.message,'error'); }
+            finally{ this.busy=false; }
+        },
+        async act(d, action){
+            if(action==='reject' && !confirm('Rejeitar esta corrida?')) return;
+            try{
+                const r = await this.api('POST','/courier/deliveries/'+d.id+'/'+action, action==='complete'?{}:undefined);
+                const msg={ accept:'Corrida aceita!', reject:'Corrida rejeitada.', pickup:'Pedido retirado!', complete:'Entrega concluída! +'+PG.fmt.money(r.earned) }[action];
+                PG.toast(msg, action==='reject'?'warn':'success');
+                if(action==='complete') PG.playChime();
+                this.refresh();
+            }catch(e){ PG.toast(e.message,'error'); }
+        },
+        navigate(d){
+            if(d.order_lat) window.open('https://www.google.com/maps/dir/?api=1&destination='+d.order_lat+','+d.order_lng,'_blank');
+        },
+        openComplete(d){
+            this.completing = d;
+            this.pod = { receiver_name:'', receiver_document:'', photo:'', photo_url:'', lat:this.lastPos?.lat||null, lng:this.lastPos?.lng||null };
+            this.captureGeo();
+        },
+        captureGeo(){
+            if(!navigator.geolocation) return;
+            navigator.geolocation.getCurrentPosition(p=>{ this.pod.lat=+p.coords.latitude.toFixed(6); this.pod.lng=+p.coords.longitude.toFixed(6); }, ()=>{}, { enableHighAccuracy:true, timeout:8000 });
+        },
+        async capturePhoto(e){
+            const file=e.target.files[0]; if(!file) return;
+            // Preview imediato
+            this.pod.photo = URL.createObjectURL(file);
+            try{
+                const fd=new FormData(); fd.append('file', file);
+                const res=await fetch(PG.url('/api/courier/upload'),{ method:'POST', headers:{ 'Authorization':'Bearer '+this.token }, body:fd });
+                const json=await res.json();
+                if(!json.ok) throw json.error;
+                this.pod.photo_url = json.data.url;
+                PG.toast('Foto anexada.','success');
+            }catch(err){ PG.toast(err.message||'Falha ao enviar a foto.','error'); }
+        },
+        async finishComplete(){
+            const d=this.completing; if(!d) return;
+            this.podBusy=true;
+            try{
+                const payload={};
+                if(this.pod.photo_url) payload.proof_url=this.pod.photo_url;
+                if(this.pod.receiver_name) payload.receiver_name=this.pod.receiver_name;
+                if(this.pod.receiver_document) payload.receiver_document=this.pod.receiver_document;
+                if(this.pod.lat){ payload.proof_lat=this.pod.lat; payload.proof_lng=this.pod.lng; }
+                const r=await this.api('POST','/courier/deliveries/'+d.id+'/complete', payload);
+                PG.toast('Entrega concluída! +'+PG.fmt.money(r.earned),'success'); PG.playChime();
+                this.completing=null; this.refresh();
+            }catch(e){ PG.toast(e.message,'error'); }
+            finally{ this.podBusy=false; }
+        },
+        withdraw(){ PG.toast('Solicitação de saque registrada. O estabelecimento fará o repasse.','success'); },
+
+        setTab(t){
+            this.tab=t;
+            if(t==='map'){ this.$nextTick(()=>{ this.ensureMap(); this.drawMap();
+                // Corrige tamanho do mapa no mobile (viewport dinâmico): vários invalidates.
+                [60,250,600].forEach(ms=>setTimeout(()=>{ try{ this.map&&this.map.invalidate(); }catch(e){} },ms));
+            }); }
+        },
+        ensureMap(){
+            if(this.map) { this.map.invalidate(); return; }
+            const center = (this.lastPos?[this.lastPos.lat,this.lastPos.lng]:((this.company.lat&&this.company.lng)?[this.company.lat,this.company.lng]:undefined));
+            this.map = PG.createMap('cmap', { center, zoom:15 });
+            // Reaplica o tamanho quando o viewport muda (barra de endereço, rotação).
+            const fix=()=>{ try{ this.map&&this.map.invalidate(); }catch(e){} };
+            window.addEventListener('resize', fix);
+            window.addEventListener('orientationchange', ()=>setTimeout(fix,300));
+        },
+        goNavigate(d){ this.active=d; this.setTab('map'); this.startNav(); },
+        async startNav(){
+            const a=this.active; if(!a||!a.order_lat){ PG.toast('Sem destino para navegar.','warn'); return; }
+            if(!this.lastPos){ PG.toast('Aguardando sua localização (GPS)…','info'); }
+            this.nav.active=true; this.tab='map'; this.$nextTick(()=>this.ensureMap());
+            await this.routeNav(true);
+        },
+        stopNav(){ this.nav.active=false; this.nav.step=''; if(this.map) this.map.clearRoad(); },
+        async routeNav(force){
+            const a=this.active; if(!this.nav.active||!a||!a.order_lat||!this.lastPos||!this.map) return;
+            // Throttle: re-rota no máximo a cada 12s (servidor OSRM público).
+            const now=Date.now(); if(!force && now-this.nav.last<12000) return; this.nav.last=now;
+            const r=await this.map.routeRoad({lat:this.lastPos.lat,lng:this.lastPos.lng},{lat:a.order_lat,lng:a.order_lng});
+            if(r){ this.nav.distanceKm=(r.distance/1000).toFixed(1); this.nav.etaMin=Math.max(1,Math.ceil(r.duration/60)); this.nav.step=(r.steps[0]&&r.steps[0].text)||'Siga para o cliente'; }
+        },
+        openChat(deliveryId){
+            this.chatDeliveryId=deliveryId; this.chatOpen=true; this.chatMessages=[]; this.chatLastId=0; this.chatUnread=0;
+            this.loadChat();
+            clearInterval(this.chatTimer);
+            this.chatTimer=setInterval(()=>{ if(this.chatOpen) this.loadChat(); },3500);
+        },
+        async loadChat(){
+            if(!this.chatDeliveryId) return;
+            try{
+                const msgs=await this.api('GET','/courier/deliveries/'+this.chatDeliveryId+'/messages?after='+this.chatLastId);
+                if(msgs.length){ this.chatMessages.push(...msgs); this.chatLastId=msgs[msgs.length-1].id; this.$nextTick(()=>{ const s=document.getElementById('cChatScroll'); if(s) s.scrollTop=s.scrollHeight; }); }
+            }catch(e){}
+        },
+        async sendChat(){
+            const body=this.chatInput.trim(); if(!body||!this.chatDeliveryId) return; this.chatInput='';
+            try{ await this.api('POST','/courier/deliveries/'+this.chatDeliveryId+'/messages',{ body }); await this.loadChat(); }
+            catch(e){ PG.toast(e.message,'error'); }
+        },
+        drawMap(){
+            if(!this.map) return;
+            const a=this.active;
+            if(this.lastPos) this.map.upsertCourier({ id:'me', lat:this.lastPos.lat, lng:this.lastPos.lng, status:'busy', name:'Você' });
+            if(a){
+                if(a.origin?.lat) this.map.setStore(a.origin.lat,a.origin.lng,a.origin.name);
+                if(a.order_lat) this.map.setDestination(a.order_lat,a.order_lng,a.customer_name);
+                if(this.nav.active){ this.routeNav(false); }
+                else {
+                    const pts=[];
+                    if(this.lastPos) pts.push({lat:this.lastPos.lat,lng:this.lastPos.lng});
+                    else if(a.origin?.lat) pts.push({lat:a.origin.lat,lng:a.origin.lng});
+                    if(a.order_lat) pts.push({lat:a.order_lat,lng:a.order_lng});
+                    if(pts.length>=2) this.map.drawRoute(pts);
+                    this.map.fitAll();
+                }
+            } else { this.map.fitAll(); }
+        },
+        startGps(){
+            if(!navigator.geolocation) return;
+            this.watchId = navigator.geolocation.watchPosition((p)=>{
+                this.lastPos={ lat:+p.coords.latitude.toFixed(6), lng:+p.coords.longitude.toFixed(6) };
+                const heading = p.coords.heading!=null && !isNaN(p.coords.heading) ? Math.round(p.coords.heading) : undefined;
+                this.api('POST','/courier/location',{ lat:this.lastPos.lat, lng:this.lastPos.lng, heading }).catch(()=>{});
+                if(this.tab==='map') this.drawMap();
+            }, ()=>{}, { enableHighAccuracy:true, maximumAge:5000, timeout:10000 });
+        },
+        badge(s){ return { assigned:'st-dispatched', accepted:'st-picked', picked:'st-picked', delivered:'st-delivered' }[s]||'st-received'; },
+        statusLabel(s){ return { assigned:'Nova corrida', accepted:'Aceita', picked:'A caminho', delivered:'Entregue' }[s]||s; },
+    };
+}
+</script>
+</body>
+</html>

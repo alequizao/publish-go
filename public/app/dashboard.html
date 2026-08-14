@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>window.PG_BASE='/publishgo';</script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Dashboard — Publish Go</title>
+    <link rel="icon" href="/publishgo/favicon.ico" />
+    <meta name="theme-color" content="#F5A623" />
+    <link rel="manifest" href="/publishgo/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } };</script>
+    <link rel="stylesheet" href="/publishgo/assets/css/app.css?v=202606041800" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+<body class="min-h-screen">
+<div class="pg-aurora"></div>
+<div class="flex min-h-screen" x-data="dashboard()" x-init="init()">
+    <div id="shell-aside"></div>
+    <div class="flex-1 min-w-0 flex flex-col">
+        <div id="shell-top"></div>
+        <main class="flex-1 p-4 lg:p-8 space-y-6">
+
+            <!-- KPIs -->
+            <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <template x-for="kpi in kpis" :key="kpi.key">
+                    <div class="pg-card p-5 pg-enter">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm" style="color:var(--pg-muted)" x-text="kpi.label"></span>
+                            <span class="pg-badge" :class="kpi.badgeClass" x-text="kpi.badge" x-show="kpi.badge"></span>
+                        </div>
+                        <div class="mt-2 text-2xl lg:text-3xl font-extrabold tracking-tight">
+                            <span x-show="loading" class="pg-skel inline-block w-24 h-7"></span>
+                            <span x-show="!loading" x-text="kpi.value"></span>
+                        </div>
+                        <div class="mt-1 text-xs" style="color:var(--pg-muted)" x-text="kpi.hint"></div>
+                    </div>
+                </template>
+            </section>
+
+            <div class="grid lg:grid-cols-3 gap-6">
+                <!-- Gráfico -->
+                <div class="lg:col-span-2 pg-card p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h2 class="font-bold text-lg">Movimento das últimas 24h</h2>
+                            <p class="text-xs" style="color:var(--pg-muted)">Pedidos e receita por hora</p>
+                        </div>
+                        <span class="pg-badge st-delivered pg-live">Ao vivo</span>
+                    </div>
+                    <div class="relative h-64"><canvas id="chartMain"></canvas></div>
+                </div>
+
+                <!-- Operação -->
+                <div class="pg-card p-5">
+                    <h2 class="font-bold text-lg mb-4">Operação agora</h2>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between p-3 rounded-xl" style="background:color-mix(in srgb,var(--pg-text) 5%,transparent)">
+                            <div class="flex items-center gap-3"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 pg-live"></span><span class="text-sm">Motoboys online</span></div>
+                            <span class="font-bold" x-text="s.couriers_online ?? '–'"></span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 rounded-xl" style="background:color-mix(in srgb,var(--pg-text) 5%,transparent)">
+                            <div class="flex items-center gap-3"><span class="w-2.5 h-2.5 rounded-full bg-violet-500"></span><span class="text-sm">Motoboys ocupados</span></div>
+                            <span class="font-bold" x-text="s.couriers_busy ?? '–'"></span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 rounded-xl" style="background:color-mix(in srgb,var(--pg-text) 5%,transparent)">
+                            <div class="flex items-center gap-3"><span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span><span class="text-sm">Em entrega</span></div>
+                            <span class="font-bold" x-text="s.in_delivery ?? '–'"></span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 rounded-xl" style="background:color-mix(in srgb,var(--pg-text) 5%,transparent)">
+                            <div class="flex items-center gap-3"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span><span class="text-sm">Tempo médio</span></div>
+                            <span class="font-bold"><span x-text="s.avg_delivery_minutes ?? '–'"></span> min</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 rounded-xl" style="background:color-mix(in srgb,var(--pg-text) 5%,transparent)">
+                            <div class="flex items-center gap-3"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span><span class="text-sm">Taxa de aceitação</span></div>
+                            <span class="font-bold"><span x-text="s.acceptance_rate ?? '–'"></span>%</span>
+                        </div>
+                    </div>
+                    <a href="/publishgo/app/deliveries.html" class="pg-btn pg-btn-ghost w-full mt-4">Abrir mapa operacional</a>
+                </div>
+            </div>
+
+            <div class="grid lg:grid-cols-3 gap-6">
+                <!-- Pedidos recentes -->
+                <div class="lg:col-span-2 pg-card p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="font-bold text-lg">Pedidos recentes</h2>
+                        <a href="/publishgo/app/orders.html" class="text-sm font-medium" style="color:var(--pg-primary)">Ver todos →</a>
+                    </div>
+                    <div class="space-y-2">
+                        <template x-if="loading">
+                            <div class="space-y-2"><div class="pg-skel h-14"></div><div class="pg-skel h-14"></div><div class="pg-skel h-14"></div></div>
+                        </template>
+                        <template x-for="o in recent" :key="o.id">
+                            <div class="flex items-center gap-3 p-3 rounded-xl pg-enter" style="background:color-mix(in srgb,var(--pg-text) 4%,transparent)">
+                                <div class="w-10 h-10 rounded-xl grid place-items-center font-bold text-white shrink-0" style="background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))" x-text="'#'+o.code"></div>
+                                <div class="min-w-0 flex-1">
+                                    <div class="font-semibold truncate" x-text="o.customer_name"></div>
+                                    <div class="text-xs truncate" style="color:var(--pg-muted)" x-text="o.district + ' • ' + PG.fmt.timeAgo(o.created_at)"></div>
+                                </div>
+                                <span class="font-bold whitespace-nowrap" x-text="PG.fmt.money(o.total)"></span>
+                                <span class="pg-badge" :class="'st-'+o.status" x-text="PG.STATUS_LABELS[o.status]"></span>
+                            </div>
+                        </template>
+                        <div x-show="!loading && recent.length===0" class="text-center py-10 text-sm" style="color:var(--pg-muted)">Sem pedidos ainda.</div>
+                    </div>
+                </div>
+
+                <!-- Bairros -->
+                <div class="pg-card p-5">
+                    <h2 class="font-bold text-lg mb-4">Bairros com mais pedidos</h2>
+                    <div class="space-y-3">
+                        <template x-for="(d, i) in districts" :key="i">
+                            <div>
+                                <div class="flex justify-between text-sm mb-1"><span x-text="d.district"></span><span class="font-semibold" x-text="d.n"></span></div>
+                                <div class="h-2 rounded-full overflow-hidden" style="background:color-mix(in srgb,var(--pg-text) 8%,transparent)">
+                                    <div class="h-full rounded-full" :style="'width:'+d.pct+'%;background:linear-gradient(90deg,var(--pg-primary),var(--pg-accent))'"></div>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="districts.length===0" class="text-center py-8 text-sm" style="color:var(--pg-muted)">Sem dados.</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script src="/publishgo/assets/js/app.js?v=202606041800"></script>
+<script src="/publishgo/assets/js/realtime.js?v=202606041800"></script>
+<script>
+function dashboard() {
+    return {
+        loading: true, s: {}, recent: [], districts: [], chart: null,
+        kpis: [],
+        async init() {
+            if (this.$el && this.$el._pgInit) return; if (this.$el) this.$el._pgInit = true;
+            if (!PG.requireAuth()) return;
+            PG.mountShell('dashboard');
+            PG.applyBrand(PG.auth.company);
+            await this.load();
+            this.connectRealtime();
+            if (PG.spa) PG.spa.onLeave(() => { try { this.chart && this.chart.destroy(); } catch (e) {} });
+        },
+        buildKpis() {
+            const s = this.s;
+            this.kpis = [
+                { key: 'rev', label: 'Vendas do dia', value: PG.fmt.money(s.revenue), hint: s.orders_delivered + ' entregues', badge: 'hoje', badgeClass: 'st-delivered' },
+                { key: 'act', label: 'Pedidos ativos', value: PG.fmt.number(s.orders_active), hint: 'em andamento agora', badge: '', badgeClass: '' },
+                { key: 'tkt', label: 'Ticket médio', value: PG.fmt.money(s.avg_ticket), hint: 'por pedido entregue', badge: '', badgeClass: '' },
+                { key: 'pft', label: 'Lucro estimado', value: PG.fmt.money(s.profit), hint: 'receita − repasses', badge: '', badgeClass: '' },
+            ];
+        },
+        async load() {
+            try {
+                const [summary, chart, orders] = await Promise.all([
+                    PG.api.get('/dashboard/summary'),
+                    PG.api.get('/dashboard/chart'),
+                    PG.api.get('/orders'),
+                ]);
+                this.s = summary; this.buildKpis();
+                this.recent = orders.slice(0, 6);
+                const max = Math.max(...chart.top_districts.map(d => +d.n), 1);
+                this.districts = chart.top_districts.map(d => ({ ...d, pct: Math.round((+d.n / max) * 100) }));
+                this.loading = false;
+                this.$nextTick(() => this.renderChart(chart));
+            } catch (e) { PG.toast(e.message || 'Erro ao carregar.', 'error'); this.loading = false; }
+        },
+        renderChart(data) {
+            const ctx = document.getElementById('chartMain');
+            if (!ctx) return;
+            const css = getComputedStyle(document.documentElement);
+            const primary = css.getPropertyValue('--pg-primary').trim() || '#ef4444';
+            const accent = css.getPropertyValue('--pg-accent').trim() || '#f59e0b';
+            const grid = css.getPropertyValue('--pg-border').trim();
+            const g = ctx.getContext('2d');
+            const grad = g.createLinearGradient(0, 0, 0, 250);
+            grad.addColorStop(0, primary + '55'); grad.addColorStop(1, primary + '00');
+            if (this.chart) this.chart.destroy();
+            this.chart = new Chart(ctx, {
+                data: {
+                    labels: data.labels,
+                    datasets: [
+                        { type: 'line', label: 'Pedidos', data: data.orders, borderColor: primary, backgroundColor: grad, fill: true, tension: .4, borderWidth: 3, pointRadius: 0, yAxisID: 'y' },
+                        { type: 'bar', label: 'Receita (R$)', data: data.revenue, backgroundColor: accent + 'cc', borderRadius: 6, yAxisID: 'y1', barThickness: 8 },
+                    ],
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { labels: { usePointStyle: true, boxWidth: 8, color: css.getPropertyValue('--pg-muted').trim() } } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: css.getPropertyValue('--pg-muted').trim(), maxTicksLimit: 8 } },
+                        y: { grid: { color: grid }, ticks: { color: css.getPropertyValue('--pg-muted').trim(), precision: 0 } },
+                        y1: { position: 'right', grid: { display: false }, ticks: { color: css.getPropertyValue('--pg-muted').trim() } },
+                    },
+                },
+            });
+        },
+        connectRealtime() {
+            const refresh = () => this.load();
+            PG.realtime.on('order.created', () => { PG.playChime(); PG.toast('Novo pedido recebido! 🛎️', 'success'); refresh(); });
+            PG.realtime.on('order.status', refresh);
+            PG.realtime.on('delivery.dispatched', refresh);
+            PG.realtime.on('poll', refresh);
+            PG.realtime.connect();
+        },
+    };
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Acompanhe sua entrega — Publish Go</title>
+    <link rel="icon" href="/publishgo/favicon.ico" />
+    <meta name="theme-color" content="#F5A623" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } };</script>
+    <link rel="stylesheet" href="/publishgo/assets/css/app.css?v=202606041800" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+<body class="min-h-screen">
+<div class="pg-aurora"></div>
+<div class="max-w-lg mx-auto min-h-screen flex flex-col" x-data="track()" x-init="init()">
+
+    <!-- Cabeçalho da marca -->
+    <header class="px-5 py-4 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl grid place-items-center overflow-hidden text-white font-bold" style="background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))">
+            <img x-show="brand.logo_url" :src="brand.logo_url" class="w-full h-full object-cover" />
+            <span x-show="!brand.logo_url" x-text="(brand.company_name||'PG').slice(0,2).toUpperCase()"></span>
+        </div>
+        <div>
+            <div class="font-bold leading-tight" x-text="brand.company_name||'Publish Go'"></div>
+            <div class="text-xs" style="color:var(--pg-muted)">Acompanhamento de entrega</div>
+        </div>
+    </header>
+
+    <!-- Carregando -->
+    <div x-show="loading" class="flex-1 grid place-items-center p-8">
+        <svg class="pg-ring-spin w-8 h-8" style="color:var(--pg-primary)" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg>
+    </div>
+
+    <!-- Link inválido -->
+    <div x-show="invalid" class="flex-1 grid place-items-center p-8 text-center" style="display:none">
+        <div><div class="text-5xl mb-3">🔗</div><p class="font-bold text-lg">Link inválido</p><p class="text-sm mt-1" style="color:var(--pg-muted)">Este link de acompanhamento não existe ou expirou.</p></div>
+    </div>
+
+    <!-- EM ANDAMENTO -->
+    <template x-if="!loading && !invalid && d && !d.concluded">
+        <div class="flex-1 flex flex-col">
+            <div class="px-5">
+                <div class="pg-card p-4 flex items-center gap-4">
+                    <div class="text-4xl" x-text="statusEmoji(d.status)"></div>
+                    <div class="flex-1">
+                        <div class="font-bold" x-text="statusText(d.status)"></div>
+                        <div class="text-xs" style="color:var(--pg-muted)">Pedido #<span x-text="d.order_code"></span></div>
+                    </div>
+                    <div class="text-right" x-show="d.eta_minutes">
+                        <div class="text-2xl font-extrabold" style="color:var(--pg-primary)"><span x-text="d.eta_minutes"></span>'</div>
+                        <div class="text-xs" style="color:var(--pg-muted)">chegada</div>
+                    </div>
+                </div>
+            </div>
+            <div class="relative flex-1 mt-4 mx-5 mb-4 rounded-2xl overflow-hidden pg-card" style="min-height:48vh">
+                <div id="tmap" class="w-full h-full"></div>
+            </div>
+            <div class="px-5 pb-6 space-y-3">
+                <div class="pg-card p-4 flex items-center gap-3" x-show="d.courier">
+                    <div class="w-11 h-11 rounded-full grid place-items-center text-white text-xl" style="background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))" x-text="d.courier?.vehicle==='bike'?'🚲':(d.courier?.vehicle==='car'?'🚗':'🛵')"></div>
+                    <div class="flex-1"><div class="font-semibold" x-text="d.courier?.name"></div><div class="text-xs" style="color:var(--pg-muted)">Seu entregador está a caminho</div></div>
+                    <span class="pg-badge st-picked pg-live">ao vivo</span>
+                </div>
+                <div class="pg-card p-4">
+                    <div class="text-xs" style="color:var(--pg-muted)">Entregar em</div>
+                    <div class="font-medium" x-text="d.address"></div>
+                    <div class="text-sm" style="color:var(--pg-muted)" x-show="d.distance_km"><span x-text="d.distance_km"></span> km de distância</div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- CONCLUÍDA: comprovante completo -->
+    <template x-if="!loading && !invalid && d && d.concluded">
+        <div class="flex-1 p-5 space-y-4">
+            <div class="pg-card p-6 text-center pg-pop">
+                <div class="w-16 h-16 rounded-full grid place-items-center text-3xl mx-auto mb-3" :style="d.status==='canceled'?'background:color-mix(in srgb,#ef4444 18%,transparent)':'background:color-mix(in srgb,#22c55e 18%,transparent)'" x-text="d.status==='canceled'?'✖️':'✅'"></div>
+                <h1 class="text-2xl font-extrabold" x-text="d.status==='canceled'?'Pedido cancelado':'Pedido entregue!'"></h1>
+                <p class="text-sm mt-1" style="color:var(--pg-muted)">Pedido #<span x-text="d.order_code"></span> · <span x-text="fmtDateTime(d.delivered_at)"></span></p>
+            </div>
+
+            <div class="pg-card divide-y" style="--tw-divide-opacity:1">
+                <div class="p-4 flex justify-between"><span style="color:var(--pg-muted)">Cliente</span><span class="font-medium" x-text="d.customer_name"></span></div>
+                <div class="p-4" style="border-top:1px solid var(--pg-border)"><div style="color:var(--pg-muted)" class="mb-1">Endereço de entrega</div><div class="font-medium" x-text="d.address"></div><div class="text-sm" style="color:var(--pg-muted)" x-text="d.district"></div></div>
+                <div class="p-4 flex justify-between" style="border-top:1px solid var(--pg-border)"><span style="color:var(--pg-muted)">Entregador</span><span class="font-medium" x-text="(d.courier_name||'—')+(d.plate?(' · '+d.plate):'')"></span></div>
+                <div class="p-4 flex justify-between" x-show="d.receiver_name" style="border-top:1px solid var(--pg-border)"><span style="color:var(--pg-muted)">Recebido por</span><span class="font-medium" x-text="d.receiver_name + (d.receiver_document?(' ('+d.receiver_document+')'):'')"></span></div>
+                <div class="p-4 flex justify-between" x-show="d.distance_km" style="border-top:1px solid var(--pg-border)"><span style="color:var(--pg-muted)">Distância</span><span class="font-medium"><span x-text="d.distance_km"></span> km</span></div>
+                <div class="p-4 flex justify-between" x-show="d.order_total" style="border-top:1px solid var(--pg-border)"><span style="color:var(--pg-muted)">Total do pedido</span><span class="font-bold" x-text="money(d.order_total)"></span></div>
+            </div>
+
+            <div class="pg-card p-3" x-show="d.proof_url">
+                <div class="text-xs mb-2" style="color:var(--pg-muted)">Comprovante de entrega</div>
+                <img :src="d.proof_url" class="w-full rounded-xl" />
+            </div>
+
+            <div class="text-center text-xs pt-2" style="color:var(--pg-muted)">Entrega gerenciada por <b x-text="brand.company_name"></b> · Publish Go</div>
+        </div>
+    </template>
+</div>
+
+<script>
+function track() {
+    return {
+        loading:true, invalid:false, d:null, brand:{}, map:null, timer:null,
+        token: new URLSearchParams(location.search).get('t') || '',
+        async init(){
+            if(!this.token){ this.loading=false; this.invalid=true; return; }
+            await this.load();
+            this.timer = setInterval(()=>this.load(), 5000);
+        },
+        async load(){
+            try{
+                const res = await fetch('/publishgo/api/public/track/'+this.token);
+                const json = await res.json();
+                if(!json.ok){ this.loading=false; this.invalid=true; clearInterval(this.timer); return; }
+                this.d = json.data; this.brand = json.data.brand||{};
+                if(this.brand.primary_color) document.documentElement.style.setProperty('--pg-primary', this.brand.primary_color);
+                if(this.brand.accent_color) document.documentElement.style.setProperty('--pg-accent', this.brand.accent_color);
+                this.loading=false;
+                if(this.d.concluded){ clearInterval(this.timer); if(this.map){ this.map.remove(); this.map=null; } }
+                else { this.$nextTick(()=>this.renderMap()); }
+            }catch(e){ this.loading=false; if(!this.d) this.invalid=true; }
+        },
+        renderMap(){
+            const el = document.getElementById('tmap'); if(!el) return;
+            const dest = this.d.destination, cou = this.d.courier, ori = this.d.origin;
+            const center = cou && cou.lat ? [cou.lat,cou.lng] : (dest && dest.lat ? [dest.lat,dest.lng] : [-9.6679,-35.7106]);
+            if(!this.map){
+                this.map = L.map(el,{zoomControl:false,attributionControl:false}).setView(center,15);
+                L.tileLayer('https://mt0.google.com/vt/lyrs=y,traffic&x={x}&y={y}&z={z}&s=Galil',{maxZoom:21,subdomains:['0','1','2','3']}).addTo(this.map);
+                this._markers={};
+            }
+            const div=(html,bg)=>L.divIcon({html:'<div style="display:grid;place-items:center;width:38px;height:38px;background:'+bg+';border-radius:50% 50% 50% 4px;color:#fff;font-size:18px;box-shadow:0 6px 16px -4px rgba(0,0,0,.4);border:2px solid #fff;transform:rotate(45deg)"><span style="transform:rotate(-45deg)">'+html+'</span></div>',className:'',iconSize:[38,38],iconAnchor:[19,19]});
+            const dot=(html,bg)=>L.divIcon({html:'<div style="display:grid;place-items:center;width:34px;height:34px;background:'+bg+';border-radius:50%;color:#fff;box-shadow:0 6px 16px -4px rgba(0,0,0,.4);border:2px solid #fff">'+html+'</div>',className:'',iconSize:[34,34],iconAnchor:[17,17]});
+            const pts=[];
+            if(dest && dest.lat){ if(this._markers.dest) this._markers.dest.setLatLng([dest.lat,dest.lng]); else this._markers.dest=L.marker([dest.lat,dest.lng],{icon:dot('📍','#22c55e')}).addTo(this.map); pts.push([dest.lat,dest.lng]); }
+            if(cou && cou.lat){ if(this._markers.cou) this._markers.cou.setLatLng([cou.lat,cou.lng]); else this._markers.cou=L.marker([cou.lat,cou.lng],{icon:div('🛵',getComputedStyle(document.documentElement).getPropertyValue('--pg-primary').trim()||'#2563eb')}).addTo(this.map); pts.push([cou.lat,cou.lng]); }
+            if(this._line) this.map.removeLayer(this._line);
+            if(pts.length===2){ this._line=L.polyline(pts,{color:getComputedStyle(document.documentElement).getPropertyValue('--pg-primary').trim()||'#2563eb',weight:4,opacity:.8,dashArray:'1,9',lineCap:'round'}).addTo(this.map); this.map.fitBounds(L.latLngBounds(pts).pad(0.35)); }
+            setTimeout(()=>this.map.invalidateSize(),150);
+        },
+        statusEmoji(s){ return {assigned:'📦',accepted:'✅',picked:'🛵'}[s]||'📦'; },
+        statusText(s){ return {assigned:'Preparando sua entrega',accepted:'Entregador a caminho do estabelecimento',picked:'Saiu para entrega!'}[s]||'Em andamento'; },
+        money(v){ return (Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); },
+        fmtDateTime(s){ const d=new Date((s||'').replace(' ','T')); return isNaN(d)?'':d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); },
+    };
+}
+</script>
+</body>
+</html>

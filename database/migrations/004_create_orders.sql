@@ -1,0 +1,33 @@
+-- Pedidos.
+CREATE TABLE IF NOT EXISTS orders (
+    id              INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    company_id      INT UNSIGNED NOT NULL,
+    code            VARCHAR(20)  NOT NULL,
+    customer_name   VARCHAR(150) NOT NULL,
+    customer_phone  VARCHAR(20)  DEFAULT NULL,
+    address         VARCHAR(255) NOT NULL,
+    address_complement VARCHAR(150) DEFAULT NULL,
+    district        VARCHAR(120) DEFAULT NULL,
+    lat             DECIMAL(10,7) DEFAULT NULL,
+    lng             DECIMAL(10,7) DEFAULT NULL,
+    status          ENUM('received','preparing','ready','dispatched','picked','delivered','canceled')
+                    NOT NULL DEFAULT 'received',
+    priority        ENUM('low','normal','high','urgent') NOT NULL DEFAULT 'normal',
+    source          ENUM('manual','ifood','api','whatsapp') NOT NULL DEFAULT 'manual',
+    payment_method  ENUM('cash','card','pix','online') NOT NULL DEFAULT 'pix',
+    subtotal        DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    delivery_fee    DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    total           DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    notes           VARCHAR(500) DEFAULT NULL,
+    prepared_at     DATETIME DEFAULT NULL,
+    delivered_at    DATETIME DEFAULT NULL,
+    canceled_at     DATETIME DEFAULT NULL,
+    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_order_code (company_id, code),
+    KEY idx_order_company_status (company_id, status),
+    KEY idx_order_created (company_id, created_at),
+    KEY idx_order_district (company_id, district),
+    CONSTRAINT fk_order_company FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

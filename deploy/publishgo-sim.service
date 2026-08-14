@@ -1,0 +1,15 @@
+[Unit]
+Description=Publish Go - Simulador de movimento dos motoboys (demo)
+After=network.target mysql.service publishgo-ws.service
+
+[Service]
+Type=simple
+User=www
+Group=www
+WorkingDirectory=/www/wwwroot/publishdev.com.br/publishgo
+ExecStart=/usr/bin/php bin/simulate.php
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

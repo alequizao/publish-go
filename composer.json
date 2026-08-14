@@ -1,0 +1,28 @@
+{
+    "name": "publishgo/publishgo",
+    "description": "Publish Go — Plataforma Whitelabel de delivery e logística inteligente",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.3",
+        "ext-pdo": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "workerman/workerman": "^4.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "PublishGo\\": "src/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "scripts": {
+        "migrate": "php bin/migrate.php",
+        "seed": "php database/seed.php",
+        "serve": "php -S 0.0.0.0:8080 -t public public/router.php",
+        "ws": "php bin/ws-server.php start"
+    }
+}

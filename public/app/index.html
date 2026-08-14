@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>window.PG_BASE='/publishgo';</script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Publish Go — Entrar</title>
+    <meta name="description" content="Publish Go — plataforma whitelabel de delivery e logística inteligente para estabelecimentos e motoboys." />
+    <link rel="icon" href="/publishgo/favicon.ico" />
+    <meta name="theme-color" content="#F5A623" />
+    <link rel="manifest" href="/publishgo/manifest.json" />
+    <link rel="apple-touch-icon" href="/publishgo/assets/icons/icon-192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } };</script>
+    <link rel="stylesheet" href="/publishgo/assets/css/app.css?v=202606041800" />
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+<body class="min-h-screen">
+
+<div class="min-h-screen grid lg:grid-cols-2">
+    <!-- LADO ESQUERDO — formulário -->
+    <div class="relative flex items-center justify-center p-6 sm:p-10 lg:p-16" style="background:var(--pg-surface)" x-data="loginPage()">
+        <div class="w-full max-w-sm pg-pop">
+            <!-- Logo -->
+            <div class="flex items-center gap-3 mb-10">
+                <div class="w-11 h-11 rounded-xl grid place-items-center font-extrabold text-lg" style="background:var(--pg-primary);color:#2B2B2B">PG</div>
+                <span class="text-xl font-extrabold tracking-tight">Publish Go</span>
+            </div>
+
+            <!-- LOGIN -->
+            <form x-show="mode==='login'" @submit.prevent="login()" class="space-y-5">
+                <div>
+                    <h2 class="text-2xl font-bold">Olá! Entre com a sua conta</h2>
+                    <p class="text-sm mt-1" style="color:var(--pg-muted)">Acesse o painel do seu estabelecimento.</p>
+                </div>
+                <div>
+                    <label class="text-sm font-medium">E-mail</label>
+                    <input x-model="form.email" type="email" required class="pg-input mt-1.5" placeholder="voce@empresa.com.br" />
+                </div>
+                <div>
+                    <label class="text-sm font-medium">Senha</label>
+                    <div class="relative mt-1.5">
+                        <input x-model="form.password" :type="showPw ? 'text' : 'password'" required class="pg-input pr-11" placeholder="••••••••" />
+                        <button type="button" @click="showPw = !showPw" class="absolute inset-y-0 right-0 px-3 grid place-items-center" style="color:var(--pg-muted)" :title="showPw ? 'Ocultar senha' : 'Mostrar senha'">
+                            <svg x-show="!showPw" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            <svg x-show="showPw" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="display:none"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.243 4.243L9.88 9.88"/></svg>
+                        </button>
+                    </div>
+                    <div class="text-right mt-1.5">
+                        <a href="#" @click.prevent="forgot()" class="text-sm font-medium" style="color:var(--pg-primary)">Esqueceu a senha?</a>
+                    </div>
+                </div>
+                <button type="submit" :disabled="loading" class="pg-btn pg-btn-primary w-full">
+                    <span x-show="!loading">Entrar</span>
+                    <svg x-show="loading" class="pg-ring-spin w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg>
+                </button>
+                <button type="button" @click="useDemo()" class="text-sm w-full text-center" style="color:var(--pg-muted)">Usar conta demo →</button>
+                <div class="pt-4 mt-1 border-t flex flex-col gap-3 text-center" style="border-color:var(--pg-border)">
+                    <a href="/publishgo/app/courier.html" class="text-sm font-medium" style="color:var(--pg-primary)">🛵 Sou motoboy — abrir app do entregador</a>
+                    <button type="button" @click="mode='register'" class="text-sm" style="color:var(--pg-muted)">Não tem conta? <span style="color:var(--pg-text);font-weight:600">Criar agora</span></button>
+                </div>
+            </form>
+
+            <!-- REGISTER -->
+            <form x-show="mode==='register'" @submit.prevent="register()" class="space-y-4" style="display:none">
+                <div>
+                    <h2 class="text-2xl font-bold">Crie sua operação</h2>
+                    <p class="text-sm mt-1" style="color:var(--pg-muted)">Em 30 segundos você já está despachando.</p>
+                </div>
+                <div>
+                    <label class="text-sm font-medium">Nome do estabelecimento</label>
+                    <input x-model="form.company_name" required class="pg-input mt-1.5" placeholder="Pizzaria do Zé" />
+                </div>
+                <div>
+                    <label class="text-sm font-medium">Seu nome</label>
+                    <input x-model="form.name" required class="pg-input mt-1.5" placeholder="José da Silva" />
+                </div>
+                <div>
+                    <label class="text-sm font-medium">E-mail</label>
+                    <input x-model="form.email" type="email" required class="pg-input mt-1.5" placeholder="voce@empresa.com.br" />
+                </div>
+                <div>
+                    <label class="text-sm font-medium">Senha</label>
+                    <input x-model="form.password" type="password" required minlength="6" class="pg-input mt-1.5" placeholder="mínimo 6 caracteres" />
+                </div>
+                <button type="submit" :disabled="loading" class="pg-btn pg-btn-primary w-full">
+                    <span x-show="!loading">Criar conta gratuita</span>
+                    <svg x-show="loading" class="pg-ring-spin w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg>
+                </button>
+                <button type="button" @click="mode='login'" class="text-sm w-full text-center" style="color:var(--pg-muted)">← Voltar para o login</button>
+            </form>
+        </div>
+
+        <!-- Botão de ajuda/suporte redondo no canto inferior esquerdo -->
+        <a href="https://wa.me/5582988880000" target="_blank" rel="noopener" title="Ajuda / Suporte"
+           class="fixed lg:absolute bottom-5 left-5 w-12 h-12 rounded-full grid place-items-center shadow-lg z-10"
+           style="background:var(--pg-action);color:var(--pg-action-text)">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </a>
+    </div>
+
+    <!-- LADO DIREITO — imagem (some no mobile) -->
+    <div class="hidden lg:block relative overflow-hidden">
+        <div class="absolute inset-0 bg-cover bg-center"
+             style="background-image:url('https://images.unsplash.com/photo-1526367790999-0150786686a2?auto=format&fit=crop&w=1400&q=80')"></div>
+        <div class="absolute inset-0" style="background:linear-gradient(135deg, color-mix(in srgb, var(--pg-primary) 78%, transparent), color-mix(in srgb, #2B2B2B 55%, transparent))"></div>
+        <div class="relative h-full flex flex-col justify-end p-12 text-white">
+            <h1 class="text-4xl xl:text-5xl font-extrabold leading-[1.1] tracking-tight drop-shadow">
+                Logística inteligente de verdade.
+            </h1>
+            <p class="mt-4 text-lg max-w-md text-white/90">
+                Gerencie pedidos, despache motoboys e acompanhe entregas em tempo real num mapa vivo.
+            </p>
+            <div class="mt-8 text-sm text-white/80">© 2026 Publish Go. Todos os direitos reservados.</div>
+        </div>
+    </div>
+</div>
+
+<script src="/publishgo/assets/js/app.js?v=202606041800"></script>
+<script>
+function loginPage() {
+    return {
+        mode: 'login',
+        loading: false,
+        showPw: false,
+        form: { email: '', password: '', company_name: '', name: '' },
+        init() { if (PG.auth.isAuthed) location.href = PG.auth.user?.role === 'admin' ? '/publishgo/app/admin.html' : '/publishgo/app/dashboard.html'; },
+        forgot() { PG.toast('Entre em contato com o suporte para redefinir sua senha.', 'info'); },
+        useDemo() { this.form.email = 'demo@publishgo.com.br'; this.form.password = 'publishgo'; this.login(); },
+        async login() {
+            this.loading = true;
+            try {
+                const data = await PG.api.post('/auth/login', { email: this.form.email, password: this.form.password });
+                PG.auth.set(data);
+                PG.toast('Bem-vindo, ' + (data.user.name.split(' ')[0]) + '!', 'success');
+                const dest = data.user.role === 'admin' ? '/publishgo/app/admin.html' : '/publishgo/app/dashboard.html';
+                setTimeout(() => location.href = dest, 400);
+            } catch (e) { PG.toast(e.message || 'Falha ao entrar.', 'error'); }
+            finally { this.loading = false; }
+        },
+        async register() {
+            this.loading = true;
+            try {
+                const data = await PG.api.post('/auth/register', this.form);
+                PG.auth.set(data);
+                PG.toast('Conta criada com sucesso!', 'success');
+                setTimeout(() => location.href = '/publishgo/app/dashboard.html', 400);
+            } catch (e) {
+                const det = e.details ? Object.values(e.details).flat()[0] : null;
+                PG.toast(det || e.message || 'Falha no cadastro.', 'error');
+            }
+            finally { this.loading = false; }
+        },
+    };
+}
+</script>
+</body>
+</html>

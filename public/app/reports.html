@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>window.PG_BASE='/publishgo';</script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Relatórios — Publish Go</title>
+    <link rel="icon" href="/publishgo/favicon.ico" />
+    <meta name="theme-color" content="#F5A623" />
+    <link rel="manifest" href="/publishgo/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } };</script>
+    <link rel="stylesheet" href="/publishgo/assets/css/app.css?v=202606041800" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+<body class="min-h-screen">
+<div class="flex min-h-screen" x-data="reportsPage()" x-init="init()">
+    <div id="shell-aside"></div>
+    <div class="flex-1 min-w-0 flex flex-col">
+        <div id="shell-top"></div>
+        <main class="flex-1 p-4 lg:p-8 space-y-6">
+
+            <div class="flex items-center justify-between flex-wrap gap-2">
+                <h2 class="font-extrabold text-lg">Desempenho do negócio</h2>
+                <select x-model="days" @change="load()" class="pg-input max-w-[12rem]">
+                    <option value="7">Últimos 7 dias</option>
+                    <option value="30">Últimos 30 dias</option>
+                    <option value="90">Últimos 90 dias</option>
+                    <option value="365">Último ano</option>
+                </select>
+            </div>
+
+            <!-- KPIs -->
+            <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="pg-card p-5"><div class="text-sm" style="color:var(--pg-muted)">Faturamento</div><div class="text-2xl lg:text-3xl font-extrabold mt-1" x-text="PG.fmt.money(s.totals?.revenue||0)"></div></div>
+                <div class="pg-card p-5"><div class="text-sm" style="color:var(--pg-muted)">Pedidos entregues</div><div class="text-2xl lg:text-3xl font-extrabold mt-1" x-text="PG.fmt.number(s.totals?.delivered||0)"></div></div>
+                <div class="pg-card p-5"><div class="text-sm" style="color:var(--pg-muted)">Ticket médio</div><div class="text-2xl lg:text-3xl font-extrabold mt-1" x-text="PG.fmt.money(s.totals?.avg_ticket||0)"></div></div>
+                <div class="pg-card p-5"><div class="text-sm" style="color:var(--pg-muted)">Descontos dados</div><div class="text-2xl lg:text-3xl font-extrabold mt-1" x-text="PG.fmt.money(s.totals?.discounts||0)"></div></div>
+            </section>
+
+            <div class="grid lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 pg-card p-5">
+                    <h3 class="font-bold mb-4">Faturamento por dia</h3>
+                    <div class="relative h-64"><canvas id="chartSales"></canvas></div>
+                </div>
+                <div class="pg-card p-5">
+                    <h3 class="font-bold mb-4">Por forma de pagamento</h3>
+                    <div class="space-y-3">
+                        <template x-for="p in byPayment" :key="p.payment_method">
+                            <div class="flex items-center justify-between"><span class="text-sm capitalize" x-text="payLabel(p.payment_method)"></span><span class="font-bold" x-text="PG.fmt.money(p.revenue)"></span></div>
+                        </template>
+                        <div x-show="byPayment.length===0" class="text-sm" style="color:var(--pg-muted)">Sem dados.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-6">
+                <!-- Mais vendidos -->
+                <div class="pg-card p-5">
+                    <h3 class="font-bold mb-4">Produtos mais vendidos</h3>
+                    <div class="space-y-2">
+                        <template x-for="(p,i) in topProducts" :key="i">
+                            <div class="flex items-center gap-3">
+                                <span class="w-6 h-6 rounded-lg grid place-items-center text-xs font-bold shrink-0" style="background:var(--pg-primary);color:#2B2B2B" x-text="i+1"></span>
+                                <span class="flex-1 min-w-0 truncate text-sm" x-text="p.name"></span>
+                                <span class="text-sm" style="color:var(--pg-muted)"><span x-text="p.qty"></span> un</span>
+                                <span class="font-bold text-sm" x-text="PG.fmt.money(p.revenue)"></span>
+                            </div>
+                        </template>
+                        <div x-show="topProducts.length===0" class="text-sm" style="color:var(--pg-muted)">Sem vendas no período.</div>
+                    </div>
+                </div>
+                <!-- Estoque baixo -->
+                <div class="pg-card p-5">
+                    <div class="flex items-center justify-between mb-4"><h3 class="font-bold">Estoque baixo / esgotado</h3><span class="pg-badge st-canceled" x-show="lowStock.length" x-text="lowStock.length"></span></div>
+                    <div class="space-y-2">
+                        <template x-for="p in lowStock" :key="p.id">
+                            <div class="flex items-center justify-between text-sm"><span class="truncate" x-text="p.name"></span><span class="font-bold" :style="p.sold_out?'color:#ef4444':''" x-text="p.sold_out?'Esgotado':(p.stock_qty+' un')"></span></div>
+                        </template>
+                        <div x-show="lowStock.length===0" class="text-sm" style="color:var(--pg-muted)">Tudo em ordem. 👍</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cupons -->
+            <div class="pg-card p-5">
+                <h3 class="font-bold mb-4">Desempenho dos cupons</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead><tr class="text-left" style="color:var(--pg-muted)"><th class="py-2 font-medium">Cupom</th><th class="py-2 font-medium">Usos</th><th class="py-2 font-medium">Desconto total</th><th class="py-2 font-medium">Receita gerada</th></tr></thead>
+                        <tbody>
+                            <template x-for="c in coupons" :key="c.code"><tr class="border-t" style="border-color:var(--pg-border)"><td class="py-2 font-semibold" x-text="c.code"></td><td class="py-2" x-text="c.uses"></td><td class="py-2" x-text="PG.fmt.money(c.total_discount)"></td><td class="py-2" x-text="PG.fmt.money(c.revenue)"></td></tr></template>
+                            <template x-if="coupons.length===0"><tr><td colspan="4" class="py-6 text-center" style="color:var(--pg-muted)">Nenhum cupom.</td></tr></template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script src="/publishgo/assets/js/app.js?v=202606041800"></script>
+<script>
+function reportsPage(){
+    return {
+        days:'30', s:{}, byPayment:[], topProducts:[], lowStock:[], coupons:[], chart:null,
+        async init(){ if(!PG.requireAuth())return; PG.mountShell('report'); PG.applyBrand(PG.auth.company); await this.load(); },
+        payLabel(m){ return {pix:'Pix',cash:'Dinheiro',card:'Cartão',online:'Online'}[m]||m; },
+        async load(){
+            try{
+                const [s,pay,top,stock,coup] = await Promise.all([
+                    PG.api.get('/reports/sales?days='+this.days),
+                    PG.api.get('/reports/by-payment?days='+this.days),
+                    PG.api.get('/reports/top-products?days='+this.days),
+                    PG.api.get('/reports/stock'),
+                    PG.api.get('/reports/coupons'),
+                ]);
+                this.s=s; this.byPayment=pay; this.topProducts=top; this.lowStock=stock; this.coupons=coup;
+                this.$nextTick(()=>this.renderChart());
+            }catch(e){ PG.toast(e.message||'Erro ao carregar relatórios','error'); }
+        },
+        renderChart(){
+            const ctx=document.getElementById('chartSales'); if(!ctx)return;
+            const css=getComputedStyle(document.documentElement); const primary=css.getPropertyValue('--pg-primary').trim()||'#F5A623';
+            const g=ctx.getContext('2d'); const grad=g.createLinearGradient(0,0,0,250); grad.addColorStop(0,primary+'55'); grad.addColorStop(1,primary+'00');
+            if(this.chart)this.chart.destroy();
+            this.chart=new Chart(ctx,{ type:'line', data:{ labels:(this.s.by_day||[]).map(d=>d.day.slice(5)), datasets:[{ label:'Faturamento', data:(this.s.by_day||[]).map(d=>d.revenue), borderColor:primary, backgroundColor:grad, fill:true, tension:.4, borderWidth:3, pointRadius:0 }] },
+                options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false},ticks:{color:css.getPropertyValue('--pg-muted').trim(),maxTicksLimit:10}}, y:{grid:{color:css.getPropertyValue('--pg-border').trim()},ticks:{color:css.getPropertyValue('--pg-muted').trim()}} } } });
+        },
+    };
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>window.PG_BASE='/publishgo';</script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Loja — Publish Go</title>
+    <link rel="icon" href="/publishgo/favicon.ico" />
+    <meta name="theme-color" content="#F5A623" />
+    <link rel="manifest" href="/publishgo/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } };</script>
+    <link rel="stylesheet" href="/publishgo/assets/css/app.css?v=202606041800" />
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+    <style>[x-cloak]{display:none!important}</style>
+</head>
+<body class="min-h-screen" x-data="shop()" x-init="init()">
+
+<!-- Carregando -->
+<div x-show="loading" class="min-h-screen grid place-items-center"><svg class="pg-ring-spin w-8 h-8" style="color:var(--pg-primary)" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg></div>
+
+<!-- Erro -->
+<div x-show="error" x-cloak class="min-h-screen grid place-items-center p-6 text-center">
+    <div><div class="text-5xl mb-3">🏪</div><h1 class="text-xl font-bold" x-text="error"></h1><p class="text-sm mt-1" style="color:var(--pg-muted)">Verifique o endereço da loja.</p></div>
+</div>
+
+<template x-if="!loading && !error">
+<div>
+    <!-- Cabeçalho -->
+    <header class="sticky top-0 z-30 pg-glass" style="border-bottom:1px solid var(--pg-border)">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl grid place-items-center font-extrabold shrink-0 overflow-hidden" style="background:var(--pg-primary);color:#2B2B2B">
+                <img x-show="co.logo_url" :src="co.logo_url" class="w-full h-full object-cover" /><span x-show="!co.logo_url" x-text="co.name.slice(0,2).toUpperCase()"></span>
+            </div>
+            <div class="min-w-0 flex-1">
+                <h1 class="font-extrabold leading-tight truncate" x-text="co.name"></h1>
+                <div class="text-xs truncate" style="color:var(--pg-muted)"><span x-text="co.address||'Loja online'"></span> · Entrega <span x-text="PG.fmt.money(co.delivery_fee)"></span></div>
+            </div>
+            <button @click="cartOpen=true" class="pg-btn pg-btn-primary !px-3 relative">
+                <span x-html="PG.icon('store','w-5 h-5')"></span>
+                <span x-show="cartCount>0" class="absolute -top-2 -right-2 text-xs font-bold rounded-full w-5 h-5 grid place-items-center" style="background:var(--pg-action);color:var(--pg-action-text)" x-text="cartCount"></span>
+            </button>
+        </div>
+        <!-- Categorias -->
+        <div class="max-w-5xl mx-auto px-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar">
+            <button @click="filter=''" :class="filter===''?'pg-btn-primary':'pg-btn-ghost'" class="pg-btn !py-1.5 text-sm whitespace-nowrap">Tudo</button>
+            <template x-for="c in categories" :key="c.id"><button @click="filter=c.id" :class="filter===c.id?'pg-btn-primary':'pg-btn-ghost'" class="pg-btn !py-1.5 text-sm whitespace-nowrap" x-text="c.name"></button></template>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 py-5 space-y-6">
+        <!-- Promoções -->
+        <template x-if="promotions.length">
+            <div class="flex gap-3 overflow-x-auto no-scrollbar">
+                <template x-for="p in promotions" :key="p.id">
+                    <div class="min-w-[260px] p-4 rounded-2xl text-white" style="background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))">
+                        <div class="text-xs font-semibold opacity-90">PROMOÇÃO</div>
+                        <div class="font-extrabold text-lg" x-text="p.title"></div>
+                        <div class="text-sm opacity-90" x-text="p.description"></div>
+                    </div>
+                </template>
+            </div>
+        </template>
+
+        <!-- Produtos por categoria -->
+        <template x-for="c in shownCategories" :key="c.id">
+            <section>
+                <h2 class="font-extrabold text-lg mb-3" x-text="c.name"></h2>
+                <div class="grid sm:grid-cols-2 gap-3">
+                    <template x-for="p in productsOf(c.id)" :key="p.id">
+                        <button @click="!p.sold_out && openProduct(p)" :class="p.sold_out?'opacity-60 cursor-not-allowed':''" class="pg-card p-3 flex gap-3 text-left hover:shadow-md transition">
+                            <div class="flex-1 min-w-0">
+                                <div class="font-bold truncate" x-text="p.name"></div>
+                                <div class="text-xs mt-0.5 line-clamp-2" style="color:var(--pg-muted)" x-text="p.description"></div>
+                                <div class="mt-2 flex items-center gap-2">
+                                    <span class="font-extrabold" x-text="PG.fmt.money(p.promo_price ?? p.price)"></span>
+                                    <span x-show="p.promo_price" class="text-xs line-through" style="color:var(--pg-muted)" x-text="PG.fmt.money(p.price)"></span>
+                                </div>
+                                <span x-show="p.sold_out" class="pg-badge st-canceled mt-2">Esgotado</span>
+                            </div>
+                            <div class="w-24 h-24 rounded-xl overflow-hidden grid place-items-center shrink-0" :style="p.image_url?'':'background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))'">
+                                <img x-show="p.image_url" :src="p.image_url" class="w-full h-full object-cover" /><span x-show="!p.image_url" class="text-white text-2xl font-extrabold" x-text="p.name.slice(0,2).toUpperCase()"></span>
+                            </div>
+                        </button>
+                    </template>
+                </div>
+            </section>
+        </template>
+        <div x-show="!products.length" class="text-center py-16" style="color:var(--pg-muted)">Esta loja ainda não cadastrou produtos.</div>
+        <footer class="py-8 text-center text-xs" style="color:var(--pg-muted)">Loja powered by <b>Publish Go</b></footer>
+    </main>
+
+    <!-- Modal produto -->
+    <div x-show="product" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style="display:none">
+        <div class="absolute inset-0 bg-black/50" @click="product=null"></div>
+        <div class="relative w-full sm:max-w-md pg-card max-h-[92vh] overflow-y-auto pg-pop rounded-b-none sm:rounded-2xl">
+            <template x-if="product">
+            <div>
+                <div class="h-44 w-full grid place-items-center" :style="product.image_url?'':'background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))'">
+                    <img x-show="product.image_url" :src="product.image_url" class="w-full h-full object-cover" /><span x-show="!product.image_url" class="text-white text-4xl font-extrabold" x-text="product.name.slice(0,2).toUpperCase()"></span>
+                </div>
+                <div class="p-5 space-y-4">
+                    <div><h2 class="text-xl font-bold" x-text="product.name"></h2><p class="text-sm mt-1" style="color:var(--pg-muted)" x-text="product.description"></p></div>
+                    <template x-for="g in product.option_groups" :key="g.id">
+                        <div>
+                            <div class="font-semibold text-sm mb-1" x-text="g.name + (g.is_required?' *':'')"></div>
+                            <div class="space-y-1">
+                                <template x-for="o in g.options" :key="o.id">
+                                    <label class="flex items-center justify-between p-2 rounded-lg cursor-pointer" style="background:color-mix(in srgb,var(--pg-text) 4%,transparent)">
+                                        <span class="text-sm" x-text="o.name"></span>
+                                        <span class="flex items-center gap-2"><span x-show="o.price>0" class="text-xs" style="color:var(--pg-muted)" x-text="'+'+PG.fmt.money(o.price)"></span>
+                                        <input type="checkbox" :value="o.id" @change="toggleOpt(g,o,$event)" :checked="sel[g.id]?.includes(o.id)" /></span>
+                                    </label>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-2 pg-card !shadow-none px-2 py-1"><button @click="qty=Math.max(1,qty-1)" class="px-2 text-lg">−</button><span class="font-bold w-6 text-center" x-text="qty"></span><button @click="qty++" class="px-2 text-lg">+</button></div>
+                        <button @click="addToCart()" class="pg-btn pg-btn-primary flex-1">Adicionar <span x-text="PG.fmt.money(productTotal())"></span></button>
+                    </div>
+                </div>
+            </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Carrinho / Checkout -->
+    <div x-show="cartOpen" x-cloak class="fixed inset-0 z-50 flex justify-end" style="display:none">
+        <div class="absolute inset-0 bg-black/50" @click="cartOpen=false"></div>
+        <div class="relative w-full sm:max-w-md h-full overflow-y-auto p-5 pg-pop" style="background:var(--pg-surface)">
+            <div class="flex items-center justify-between mb-4"><h2 class="text-xl font-bold">Seu pedido</h2><button @click="cartOpen=false" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('close')"></button></div>
+
+            <template x-if="success">
+                <div class="text-center py-10">
+                    <div class="text-5xl mb-3">✅</div>
+                    <h3 class="text-lg font-bold">Pedido enviado!</h3>
+                    <p class="text-sm mt-1" style="color:var(--pg-muted)">Seu pedido <b x-text="'#'+success.code"></b> foi recebido pela loja.</p>
+                    <div class="mt-2 font-extrabold text-lg" x-text="PG.fmt.money(success.total)"></div>
+                    <button @click="resetAll()" class="pg-btn pg-btn-primary mt-5">Fazer novo pedido</button>
+                </div>
+            </template>
+
+            <template x-if="!success">
+            <div class="space-y-4">
+                <div x-show="cart.length===0" class="text-center py-10" style="color:var(--pg-muted)">Seu carrinho está vazio.</div>
+                <template x-for="(it,i) in cart" :key="i">
+                    <div class="flex gap-3 items-start pg-card !shadow-none p-3">
+                        <div class="flex-1 min-w-0"><div class="font-semibold text-sm"><span x-text="it.qty"></span>× <span x-text="it.name"></span></div><div x-show="it.optLabel" class="text-xs" style="color:var(--pg-muted)" x-text="it.optLabel"></div></div>
+                        <div class="text-right"><div class="font-bold text-sm" x-text="PG.fmt.money(it.unit*it.qty)"></div><button @click="cart.splice(i,1)" class="text-xs" style="color:#ef4444">remover</button></div>
+                    </div>
+                </template>
+
+                <template x-if="cart.length">
+                <div class="space-y-3">
+                    <!-- Cupom -->
+                    <div x-show="features.coupons" class="flex gap-2">
+                        <input x-model="couponCode" placeholder="Cupom de desconto" class="pg-input !py-2 text-sm" />
+                        <button @click="applyCoupon()" class="pg-btn pg-btn-ghost !py-2 text-sm">Aplicar</button>
+                    </div>
+                    <div x-show="coupon" class="text-sm flex justify-between" style="color:#16a34a"><span x-text="'Cupom '+(coupon?.code||'')"></span><span x-text="'-'+PG.fmt.money(discount)"></span></div>
+
+                    <!-- Dados de entrega -->
+                    <div class="pt-2 border-t space-y-2" style="border-color:var(--pg-border)">
+                        <input x-model="form.customer_name" placeholder="Seu nome *" class="pg-input !py-2 text-sm" />
+                        <input x-model="form.customer_phone" placeholder="WhatsApp/Telefone *" class="pg-input !py-2 text-sm" />
+                        <input x-model="form.address" placeholder="Endereço de entrega *" class="pg-input !py-2 text-sm" />
+                        <input x-model="form.district" placeholder="Bairro" class="pg-input !py-2 text-sm" />
+                        <select x-model="form.payment_method" class="pg-input !py-2 text-sm"><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="card">Cartão na entrega</option></select>
+                        <textarea x-model="form.notes" rows="2" placeholder="Observações (opcional)" class="pg-input !py-2 text-sm"></textarea>
+                    </div>
+
+                    <!-- Totais -->
+                    <div class="space-y-1 text-sm pt-2 border-t" style="border-color:var(--pg-border)">
+                        <div class="flex justify-between"><span style="color:var(--pg-muted)">Subtotal</span><span x-text="PG.fmt.money(subtotal)"></span></div>
+                        <div x-show="discount>0" class="flex justify-between" style="color:#16a34a"><span>Desconto</span><span x-text="'-'+PG.fmt.money(discount)"></span></div>
+                        <div class="flex justify-between"><span style="color:var(--pg-muted)">Entrega</span><span x-text="PG.fmt.money(deliveryFee)"></span></div>
+                        <div class="flex justify-between font-extrabold text-base pt-1"><span>Total</span><span x-text="PG.fmt.money(total)"></span></div>
+                    </div>
+                    <button @click="checkout()" :disabled="placing" class="pg-btn pg-btn-primary w-full"><span x-show="!placing">Enviar pedido</span><svg x-show="placing" class="pg-ring-spin w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg></button>
+                </div>
+                </template>
+            </div>
+            </template>
+        </div>
+    </div>
+</div>
+</template>
+
+<script src="/publishgo/assets/js/app.js?v=202606041800"></script>
+<script>
+function shop(){
+    return {
+        loading:true, error:null, co:{}, categories:[], products:[], promotions:[], features:{coupons:false},
+        filter:'', product:null, qty:1, sel:{},
+        cart:[], cartOpen:false, couponCode:'', coupon:null, placing:false, success:null,
+        form:{ customer_name:'',customer_phone:'',address:'',district:'',payment_method:'pix',notes:'' },
+        slug(){ const parts=location.pathname.replace(/\/$/,'').split('/'); return parts[parts.length-1]; },
+        async init(){
+            try{
+                const d = await PG.api.get('/shop/'+this.slug());
+                this.co=d.company; this.categories=d.categories; this.products=d.products; this.promotions=d.promotions||[]; this.features=d.features||{coupons:false};
+                if(this.co.primary_color) document.documentElement.style.setProperty('--pg-primary',this.co.primary_color);
+                if(this.co.accent_color) document.documentElement.style.setProperty('--pg-accent',this.co.accent_color);
+                document.title = this.co.name+' — Loja';
+            }catch(e){ this.error = e.status===404 ? 'Loja não encontrada' : (e.message||'Erro ao carregar a loja'); }
+            finally{ this.loading=false; }
+        },
+        get shownCategories(){ const cats = this.filter ? this.categories.filter(c=>c.id===this.filter) : this.categories.slice();
+            const uncat = this.products.some(p=>!p.category_id); if(!this.filter && uncat) cats.push({id:null,name:'Outros'}); return cats; },
+        productsOf(catId){ return this.products.filter(p=> (p.category_id||null)===(catId||null)); },
+        openProduct(p){ this.product=p; this.qty=1; this.sel={}; },
+        toggleOpt(g,o,e){ const arr=this.sel[g.id]||[]; if(e.target.checked){ if(g.max_select && arr.length>=g.max_select){ e.target.checked=false; PG.toast('Máximo de '+g.max_select+' em '+g.name,'warn'); return; } arr.push(o.id); } else { const i=arr.indexOf(o.id); if(i>-1)arr.splice(i,1); } this.sel[g.id]=arr; },
+        productTotal(){ if(!this.product)return 0; let u=this.product.promo_price ?? this.product.price; for(const g of this.product.option_groups){ for(const o of g.options){ if((this.sel[g.id]||[]).includes(o.id)) u+=o.price; } } return u*this.qty; },
+        addToCart(){
+            const p=this.product; let unit=p.promo_price ?? p.price; const optIds=[]; const labels=[];
+            for(const g of p.option_groups){ if(g.is_required && !(this.sel[g.id]||[]).length){ PG.toast('Selecione: '+g.name,'warn'); return; } for(const o of g.options){ if((this.sel[g.id]||[]).includes(o.id)){ unit+=o.price; optIds.push(o.id); labels.push(o.name); } } }
+            this.cart.push({ product_id:p.id, name:p.name, qty:this.qty, unit, options:optIds, optLabel:labels.join(', '), notes:'' });
+            this.product=null; this.coupon=null; this.couponCode=''; PG.toast('Adicionado ao carrinho','success');
+        },
+        get cartCount(){ return this.cart.reduce((s,i)=>s+i.qty,0); },
+        get subtotal(){ return this.cart.reduce((s,i)=>s+i.unit*i.qty,0); },
+        get discount(){ if(!this.coupon)return 0; return this.coupon.free_shipping?0:this.coupon.discount; },
+        get deliveryFee(){ const base=this.co.delivery_fee||0; return this.coupon?.free_shipping?0:base; },
+        get total(){ return Math.max(0,this.subtotal-this.discount)+this.deliveryFee; },
+        async applyCoupon(){ if(!this.couponCode.trim())return; try{ const d=await PG.api.post('/shop/'+this.slug()+'/coupon',{code:this.couponCode,subtotal:this.subtotal}); this.coupon=d; PG.toast('Cupom aplicado!','success'); }catch(e){ this.coupon=null; const m=e.details?Object.values(e.details).flat()[0]:e.message; PG.toast(m||'Cupom inválido','error'); } },
+        async checkout(){
+            if(!this.form.customer_name||!this.form.customer_phone||!this.form.address){ PG.toast('Preencha nome, telefone e endereço.','warn'); return; }
+            this.placing=true;
+            try{
+                const body={ ...this.form, coupon_code:this.coupon?this.couponCode:'', items:this.cart.map(i=>({product_id:i.product_id,quantity:i.qty,options:i.options,notes:i.notes})) };
+                const d=await PG.api.post('/shop/'+this.slug()+'/checkout', body);
+                this.success=d; this.cart=[];
+            }catch(e){ const m=e.details?Object.values(e.details).flat()[0]:e.message; PG.toast(m||'Falha ao enviar pedido','error'); }
+            finally{ this.placing=false; }
+        },
+        resetAll(){ this.success=null; this.cartOpen=false; this.coupon=null; this.couponCode=''; this.form={customer_name:'',customer_phone:'',address:'',district:'',payment_method:'pix',notes:''}; },
+    };
+}
+</script>
+</body>
+</html>

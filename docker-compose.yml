@@ -1,0 +1,68 @@
+# Publish Go — ambiente opcional via Docker.
+# Sobe MySQL, PHP-FPM + Nginx (API + painel) e o servidor WebSocket.
+services:
+  db:
+    image: mysql:5.7
+    container_name: publishgo-db
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-troque-esta-senha}
+      MYSQL_DATABASE: publishgo
+      MYSQL_USER: publishgo
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-troque-esta-senha}
+    ports:
+      - "3306:3306"
+    volumes:
+      - pg_dbdata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ppublishgo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    image: php:8.3-fpm-alpine
+    container_name: publishgo-app
+    working_dir: /var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./:/var/www/html
+    command: >
+      sh -c "docker-php-ext-install pdo pdo_mysql >/dev/null 2>&1;
+             php bin/migrate.php; php database/seed.php;
+             php-fpm"
+    environment:
+      DB_HOST: db
+
+  web:
+    image: nginx:alpine
+    container_name: publishgo-web
+    depends_on: [app]
+    ports:
+      - "8080:80"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+  ws:
+    image: php:8.3-cli-alpine
+    container_name: publishgo-ws
+    working_dir: /var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./:/var/www/html
+    command: >
+      sh -c "docker-php-ext-install pdo pdo_mysql sockets >/dev/null 2>&1;
+             php bin/ws-server.php start"
+    ports:
+      - "8181:8181"
+    environment:
+      DB_HOST: db
+      WS_HOST: 0.0.0.0
+
+volumes:
+  pg_dbdata:

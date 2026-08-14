@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>window.PG_BASE='/publishgo';</script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Motoboys — Publish Go</title>
+    <link rel="icon" href="/publishgo/favicon.ico" />
+    <meta name="theme-color" content="#F5A623" />
+    <link rel="manifest" href="/publishgo/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } };</script>
+    <link rel="stylesheet" href="/publishgo/assets/css/app.css?v=202606041800" />
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+<body class="min-h-screen">
+<div class="pg-aurora"></div>
+<div class="flex min-h-screen" x-data="couriersPage()" x-init="init()">
+    <div id="shell-aside"></div>
+    <div class="flex-1 min-w-0 flex flex-col">
+        <div id="shell-top"></div>
+        <main class="flex-1 p-4 lg:p-8 space-y-5">
+
+            <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
+                <div class="flex-1">
+                    <p class="text-sm" style="color:var(--pg-muted)">Gerencie sua equipe de entregadores. Compartilhe o link de auto-cadastro para novos motoboys entrarem na sua operação.</p>
+                </div>
+                <button @click="copyLink()" class="pg-btn pg-btn-ghost text-sm">🔗 Link de cadastro</button>
+                <button @click="openCreate()" class="pg-btn pg-btn-primary"><span x-html="PG.icon('plus','w-5 h-5')"></span> Novo motoboy</button>
+            </div>
+
+            <!-- Cards de resumo -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="pg-card p-4"><div class="text-xs" style="color:var(--pg-muted)">Total</div><div class="text-2xl font-extrabold" x-text="couriers.length"></div></div>
+                <div class="pg-card p-4"><div class="text-xs" style="color:var(--pg-muted)">Online</div><div class="text-2xl font-extrabold text-emerald-500" x-text="byStatus('online')"></div></div>
+                <div class="pg-card p-4"><div class="text-xs" style="color:var(--pg-muted)">Ocupados</div><div class="text-2xl font-extrabold text-violet-500" x-text="byStatus('busy')"></div></div>
+                <div class="pg-card p-4"><div class="text-xs" style="color:var(--pg-muted)">A verificar</div><div class="text-2xl font-extrabold text-amber-500" x-text="couriers.filter(c=>!c.is_verified).length"></div></div>
+            </div>
+
+            <div class="grid gap-3">
+                <template x-if="loading"><div class="space-y-3"><div class="pg-skel h-20"></div><div class="pg-skel h-20"></div></div></template>
+                <template x-for="c in couriers" :key="c.id">
+                    <div class="pg-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 pg-enter">
+                        <div class="flex items-center gap-3 flex-1 min-w-0">
+                            <div class="w-12 h-12 rounded-full grid place-items-center text-white font-semibold shrink-0 relative" style="background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))">
+                                <span x-text="c.name.split(' ').map(s=>s[0]).slice(0,2).join('')"></span>
+                                <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2" :style="'border-color:var(--pg-surface);background:'+statusColor(c.status)"></span>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="font-semibold truncate flex items-center gap-2"><span x-text="c.name"></span><span x-show="!c.is_verified" class="text-xs text-amber-500">• a verificar</span></div>
+                                <div class="text-xs truncate" style="color:var(--pg-muted)"><span x-text="c.phone"></span> · <span x-text="vehicleLabel(c.vehicle)"></span> <span x-show="c.plate" x-text="'· '+c.plate"></span></div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-5 text-sm">
+                            <div class="text-center"><div class="font-bold" x-text="'⭐ '+c.rating"></div><div class="text-xs" style="color:var(--pg-muted)">avaliação</div></div>
+                            <div class="text-center"><div class="font-bold" x-text="c.total_deliveries"></div><div class="text-xs" style="color:var(--pg-muted)">entregas</div></div>
+                            <div class="text-center"><div class="font-bold" x-text="PG.fmt.money(c.balance)"></div><div class="text-xs" style="color:var(--pg-muted)">saldo</div></div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button x-show="!c.is_verified" @click="verify(c)" class="pg-btn pg-btn-ghost !py-1.5 text-xs">Verificar</button>
+                            <button @click="openFinancial(c)" class="pg-btn pg-btn-ghost !p-2" title="Pagamentos" x-html="PG.icon('finance','w-4 h-4')"></button>
+                            <button @click="openEdit(c)" class="pg-btn pg-btn-ghost !p-2" title="Editar" x-html="PG.icon('orders','w-4 h-4')"></button>
+                            <button @click="remove(c)" class="pg-btn pg-btn-ghost !p-2" title="Remover" x-html="PG.icon('close','w-4 h-4')"></button>
+                        </div>
+                    </div>
+                </template>
+                <div x-show="!loading && couriers.length===0" class="pg-card p-12 text-center" style="color:var(--pg-muted)">
+                    <div class="text-5xl mb-3">🛵</div><p class="font-semibold">Nenhum motoboy cadastrado</p>
+                    <p class="text-sm mt-1">Cadastre o primeiro ou compartilhe o link de auto-cadastro.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Modal cadastro/edição -->
+<div x-data x-show="$store.cmodal.open" x-cloak @keydown.escape.window="$store.cmodal.open=false" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style="display:none">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="$store.cmodal.open=false"></div>
+    <div class="relative w-full sm:max-w-md pg-card p-6 max-h-[92vh] overflow-y-auto pg-pop rounded-b-none sm:rounded-2xl" x-data="courierForm()">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold" x-text="editing ? 'Editar motoboy' : 'Novo motoboy'"></h2>
+            <button @click="$store.cmodal.open=false" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('close')"></button>
+        </div>
+        <form @submit.prevent="submit()" class="space-y-3">
+            <div><label class="text-sm font-medium">Nome</label><input x-model="f.name" required class="pg-input mt-1" /></div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="text-sm font-medium">Telefone</label><input x-model="f.phone" required class="pg-input mt-1" placeholder="(82) 90000-0000" /></div>
+                <div><label class="text-sm font-medium">E-mail</label><input x-model="f.email" type="email" class="pg-input mt-1" /></div>
+                <div><label class="text-sm font-medium">Documento</label><input x-model="f.document" class="pg-input mt-1" /></div>
+                <div><label class="text-sm font-medium">Placa</label><input x-model="f.plate" class="pg-input mt-1" /></div>
+                <div><label class="text-sm font-medium">Veículo</label><select x-model="f.vehicle" class="pg-input mt-1"><option value="moto">Moto</option><option value="bike">Bike</option><option value="car">Carro</option></select></div>
+                <div><label class="text-sm font-medium" x-text="editing ? 'Nova senha (opcional)' : 'Senha'"></label><input x-model="f.password" type="password" :required="!editing" class="pg-input mt-1" placeholder="mín. 6" /></div>
+            </div>
+            <button type="submit" :disabled="saving" class="pg-btn pg-btn-primary w-full">
+                <span x-show="!saving" x-text="editing ? 'Salvar' : 'Cadastrar'"></span>
+                <svg x-show="saving" class="pg-ring-spin w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg>
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Financeiro / Pagamentos -->
+<div x-data x-show="$store.fmodal.open" x-cloak @keydown.escape.window="$store.fmodal.open=false" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style="display:none">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="$store.fmodal.open=false"></div>
+    <div class="relative w-full sm:max-w-lg pg-card p-6 max-h-[92vh] overflow-y-auto pg-pop rounded-b-none sm:rounded-2xl" x-data="financialModal()" @open-financial.window="boot($event.detail)">
+        <div class="flex items-center justify-between mb-4">
+            <div><h2 class="text-xl font-bold">Financeiro</h2><p class="text-sm" style="color:var(--pg-muted)" x-text="fin.courier?.name"></p></div>
+            <button @click="$store.fmodal.open=false" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('close')"></button>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 mb-4">
+            <div class="pg-card p-3 text-center"><div class="text-xs" style="color:var(--pg-muted)">Saldo a pagar</div><div class="text-lg font-extrabold" style="color:var(--pg-primary)" x-text="PG.fmt.money(fin.courier?.balance||0)"></div></div>
+            <div class="pg-card p-3 text-center"><div class="text-xs" style="color:var(--pg-muted)">Ganhos</div><div class="text-lg font-bold text-emerald-500" x-text="PG.fmt.money(fin.earned||0)"></div></div>
+            <div class="pg-card p-3 text-center"><div class="text-xs" style="color:var(--pg-muted)">Pago</div><div class="text-lg font-bold" x-text="PG.fmt.money(fin.paid||0)"></div></div>
+        </div>
+
+        <!-- Registrar pagamento -->
+        <div class="pg-card p-4 mb-4">
+            <h3 class="font-bold text-sm mb-3">Registrar pagamento</h3>
+            <form @submit.prevent="pay()" class="grid grid-cols-2 gap-2">
+                <div><label class="text-xs" style="color:var(--pg-muted)">Valor (R$)</label><input x-model="payForm.amount" type="number" step="0.01" required class="pg-input mt-1" placeholder="0,00" /></div>
+                <div><label class="text-xs" style="color:var(--pg-muted)">Forma</label><select x-model="payForm.method" class="pg-input mt-1"><option value="pix">PIX</option><option value="cash">Dinheiro</option><option value="transfer">Transferência</option></select></div>
+                <div class="col-span-2"><label class="text-xs" style="color:var(--pg-muted)">Descrição</label><input x-model="payForm.description" class="pg-input mt-1" placeholder="Repasse semana..." /></div>
+                <button type="submit" :disabled="paying" class="pg-btn pg-btn-primary col-span-2 mt-1"><span x-show="!paying">Registrar pagamento</span><svg x-show="paying" class="pg-ring-spin w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3a9 9 0 109 9"/></svg></button>
+            </form>
+        </div>
+
+        <!-- Extrato -->
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="font-bold text-sm">Extrato</h3>
+            <button @click="receipt()" class="pg-btn pg-btn-ghost !py-1.5 text-xs">🖨️ Recibo / PDF</button>
+        </div>
+        <div class="space-y-1">
+            <template x-for="t in fin.transactions" :key="t.id">
+                <div class="flex items-center justify-between py-2 border-b text-sm" style="border-color:var(--pg-border)">
+                    <div><div x-text="t.description || t.type"></div><div class="text-xs" style="color:var(--pg-muted)" x-text="(t.created_at||'').slice(0,16).replace('T',' ')"></div></div>
+                    <span class="font-bold" :class="t.direction==='credit'?'text-emerald-500':'text-rose-500'" x-text="(t.direction==='credit'?'+':'-')+PG.fmt.money(t.amount)"></span>
+                </div>
+            </template>
+            <div x-show="!fin.transactions || fin.transactions.length===0" class="text-center py-6 text-sm" style="color:var(--pg-muted)">Sem lançamentos.</div>
+        </div>
+    </div>
+</div>
+
+<script src="/publishgo/assets/js/app.js?v=202606041800"></script>
+<script src="/publishgo/assets/js/realtime.js?v=202606041800"></script>
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.store('cmodal', { open: false, editing: null });
+    Alpine.store('fmodal', { open: false });
+});
+function couriersPage() {
+    return {
+        loading: true, couriers: [],
+        async init() {
+            if (this.$el && this.$el._pgInit) return; if (this.$el) this.$el._pgInit = true;
+            if (!PG.requireAuth()) return;
+            PG.mountShell('couriers');
+            PG.applyBrand(PG.auth.company);
+            await this.load();
+            PG.realtime.on('courier.status', () => this.load());
+            PG.realtime.on('poll', () => this.load());
+            PG.realtime.connect();
+            window.addEventListener('pg-couriers-changed', () => this.load());
+        },
+        async load() { try { this.couriers = await PG.api.get('/couriers'); } catch(e){ PG.toast(e.message,'error'); } finally { this.loading=false; } },
+        byStatus(s){ return this.couriers.filter(c=>c.status===s).length; },
+        statusColor(s){ return {online:'#22c55e',busy:'#8b5cf6',offline:'#94a3b8',suspended:'#ef4444'}[s]||'#94a3b8'; },
+        vehicleLabel(v){ return {moto:'Moto',bike:'Bike',car:'Carro'}[v]||v; },
+        openCreate(){ Alpine.store('cmodal').editing=null; Alpine.store('cmodal').open=true; },
+        openEdit(c){ Alpine.store('cmodal').editing=c; Alpine.store('cmodal').open=true; },
+        openFinancial(c){ Alpine.store('fmodal').open=true; window.dispatchEvent(new CustomEvent('open-financial',{detail:c})); },
+        async verify(c){ try{ await PG.api.put('/couriers/'+c.id,{is_verified:'1'}); PG.toast('Motoboy verificado.','success'); this.load(); }catch(e){PG.toast(e.message,'error');} },
+        async remove(c){ if(!confirm('Remover '+c.name+'?'))return; try{ await PG.api.del('/couriers/'+c.id); PG.toast('Removido.','warn'); this.load(); }catch(e){PG.toast(e.message,'error');} },
+        copyLink(){
+            const link = location.origin + PG.url('/app/courier-register.html?empresa=' + (PG.auth.company?.slug||''));
+            navigator.clipboard.writeText(link).then(()=>PG.toast('Link copiado! '+link,'success')).catch(()=>prompt('Link de cadastro:', link));
+        },
+    };
+}
+function financialModal() {
+    return {
+        fin:{ courier:null, earned:0, paid:0, transactions:[] }, paying:false,
+        payForm:{ amount:'', method:'pix', description:'' },
+        async boot(courier){
+            this.fin={ courier:{ id:courier.id, name:courier.name, balance:courier.balance }, earned:0, paid:0, transactions:[] };
+            this.payForm={ amount:'', method:'pix', description:'' };
+            await this.reload(courier.id);
+        },
+        async reload(id){
+            try{ this.fin = await PG.api.get('/couriers/'+id+'/financial'); }catch(e){ PG.toast(e.message,'error'); }
+        },
+        async pay(){
+            this.paying=true;
+            try{
+                const r=await PG.api.post('/couriers/'+this.fin.courier.id+'/payments',{ amount:Number(this.payForm.amount), method:this.payForm.method, description:this.payForm.description });
+                PG.toast('Pagamento registrado: '+PG.fmt.money(r.payment.amount),'success');
+                this._lastPayment=r.payment;
+                this.payForm.amount=''; this.payForm.description='';
+                await this.reload(this.fin.courier.id);
+                window.dispatchEvent(new Event('pg-couriers-changed'));
+            }catch(e){ const d=e.details?Object.values(e.details).flat()[0]:null; PG.toast(d||e.message,'error'); }
+            finally{ this.paying=false; }
+        },
+        receipt(){
+            const data={ company:PG.auth.company, courier:this.fin.courier, earned:this.fin.earned, paid:this.fin.paid, transactions:this.fin.transactions, lastPayment:this._lastPayment||null, at:new Date().toISOString() };
+            localStorage.setItem('pg_receipt', JSON.stringify(data));
+            window.open(PG.url('/app/receipt.html'),'_blank');
+        },
+    };
+}
+function courierForm() {
+    return {
+        saving:false,
+        get editing(){ return !!Alpine.store('cmodal').editing; },
+        f:{ name:'',phone:'',email:'',document:'',plate:'',vehicle:'moto',password:'' },
+        init(){
+            this.$watch('$store.cmodal.open', open => {
+                if(open){ const e=Alpine.store('cmodal').editing; this.f = e ? {name:e.name,phone:e.phone,email:e.email||'',document:e.document||'',plate:e.plate||'',vehicle:e.vehicle,password:''} : {name:'',phone:'',email:'',document:'',plate:'',vehicle:'moto',password:''}; }
+            });
+        },
+        async submit(){
+            this.saving=true;
+            try{
+                const e=Alpine.store('cmodal').editing;
+                const payload={...this.f}; if(!payload.password) delete payload.password; if(!payload.email) delete payload.email;
+                if(e){ await PG.api.put('/couriers/'+e.id,payload); PG.toast('Motoboy atualizado.','success'); }
+                else { await PG.api.post('/couriers',payload); PG.toast('Motoboy cadastrado! 🛵','success'); }
+                Alpine.store('cmodal').open=false;
+                window.dispatchEvent(new Event('pg-couriers-changed'));
+            }catch(err){ const d=err.details?Object.values(err.details).flat()[0]:null; PG.toast(d||err.message,'error'); }
+            finally{ this.saving=false; }
+        },
+    };
+}
+</script>
+</body>
+</html>

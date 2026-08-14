@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>window.PG_BASE='/publishgo';</script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Entregas — Publish Go</title>
+    <link rel="icon" href="/publishgo/favicon.ico" />
+    <meta name="theme-color" content="#F5A623" />
+    <link rel="manifest" href="/publishgo/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } };</script>
+    <link rel="stylesheet" href="/publishgo/assets/css/app.css?v=202606041800" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+<body class="min-h-screen">
+<div class="pg-aurora"></div>
+<div class="flex min-h-screen" x-data="deliveriesPage()" x-init="init()">
+    <div id="shell-aside"></div>
+    <div class="flex-1 min-w-0 flex flex-col">
+        <div id="shell-top"></div>
+        <main class="flex-1 p-4 lg:p-8">
+            <div class="grid lg:grid-cols-3 gap-4 lg:gap-6 lg:h-[calc(100vh-7rem)]">
+
+                <!-- Mapa -->
+                <div class="lg:col-span-2 pg-card overflow-hidden relative h-[55vh] lg:h-auto">
+                    <div id="map" class="w-full h-full"></div>
+                    <div class="absolute top-3 left-3 z-[1000] flex gap-2">
+                        <button @click="map && map.toggleLayer()" class="pg-btn pg-glass !py-2 text-sm">🛰️ Camada</button>
+                        <button @click="map && map.fitAll()" class="pg-btn pg-glass !py-2 text-sm">🎯 Centralizar</button>
+                    </div>
+                    <div class="absolute bottom-3 left-3 z-[1000] pg-glass rounded-xl px-3 py-2 text-xs flex items-center gap-3">
+                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 pg-live"></span> <span x-text="couriers.filter(c=>c.status==='online').length"></span> online</span>
+                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-violet-500"></span> <span x-text="couriers.filter(c=>c.status==='busy').length"></span> ocupados</span>
+                        <span x-show="rt.mode!=='ws'" class="text-amber-500">• polling</span>
+                        <span x-show="rt.mode==='ws'" class="text-emerald-500">• tempo real</span>
+                    </div>
+                </div>
+
+                <!-- Painel lateral -->
+                <div class="pg-card flex flex-col overflow-hidden min-h-[60vh] lg:min-h-0">
+                    <div class="flex border-b" style="border-color:var(--pg-border)">
+                        <button @click="tab='dispatch'" :class="tab==='dispatch'?'border-b-2':''" :style="tab==='dispatch'?'border-color:var(--pg-primary);color:var(--pg-primary)':''" class="flex-1 py-3 font-semibold text-sm">Despachar</button>
+                        <button @click="tab='couriers'" :class="tab==='couriers'?'border-b-2':''" :style="tab==='couriers'?'border-color:var(--pg-primary);color:var(--pg-primary)':''" class="flex-1 py-3 font-semibold text-sm">Motoboys</button>
+                    </div>
+
+                    <!-- Tab: despachar -->
+                    <div x-show="tab==='dispatch'" class="flex-1 pg-scroll-area p-4 space-y-3">
+                        <p class="text-xs" style="color:var(--pg-muted)">Pedidos prontos para sair. Despache automático (motoboy mais próximo) ou escolha manualmente.</p>
+                        <template x-for="o in dispatchable" :key="o.id">
+                            <div class="p-3 rounded-xl pg-enter" style="background:color-mix(in srgb,var(--pg-text) 4%,transparent)">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-semibold">#<span x-text="o.code"></span> · <span x-text="o.customer_name"></span></span>
+                                    <span class="pg-badge" :class="'st-'+o.status" x-text="PG.STATUS_LABELS[o.status]"></span>
+                                </div>
+                                <div class="text-xs mt-1 truncate" style="color:var(--pg-muted)" x-text="o.address"></div>
+                                <div class="flex gap-2 mt-2">
+                                    <button @click="dispatchAuto(o)" :disabled="busyId===o.id" class="pg-btn pg-btn-primary !py-1.5 text-sm flex-1">⚡ Auto</button>
+                                    <select x-model="manualCourier[o.id]" class="pg-input !py-1.5 !px-2 text-sm flex-1">
+                                        <option value="">Manual…</option>
+                                        <template x-for="c in couriers.filter(c=>c.status!=='offline')" :key="c.id">
+                                            <option :value="c.id" x-text="c.name"></option>
+                                        </template>
+                                    </select>
+                                    <button @click="dispatchManual(o)" :disabled="!manualCourier[o.id]||busyId===o.id" class="pg-btn pg-btn-ghost !py-1.5 text-sm">OK</button>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="dispatchable.length===0" class="text-center py-8 text-sm" style="color:var(--pg-muted)">Nenhum pedido aguardando despacho.</div>
+
+                        <template x-if="tracking">
+                            <div class="pg-card p-3 mt-2 pg-pop" style="border-color:var(--pg-primary)">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="font-bold text-sm">Rastreamento ativo</span>
+                                    <button @click="stopTracking()" class="text-xs" style="color:var(--pg-muted)">fechar</button>
+                                </div>
+                                <div class="text-sm" x-text="'#'+tracking.delivery.order_code+' • '+tracking.delivery.customer_name"></div>
+                                <div class="text-xs" style="color:var(--pg-muted)" x-text="'Motoboy: '+(tracking.delivery.courier_name||'—')"></div>
+                                <div class="flex gap-4 mt-2 text-sm">
+                                    <span>📍 <b x-text="(tracking.distance_km??'–')"></b> km</span>
+                                    <span>⏱️ <b x-text="(tracking.eta_minutes??'–')"></b> min</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2 mt-3">
+                                    <button @click="shareTrack()" class="pg-btn pg-btn-primary !py-1.5 text-xs" x-show="tracking.delivery.track_token">🔗 Link do cliente</button>
+                                    <button @click="openChat(tracking.delivery.id)" class="pg-btn pg-btn-ghost !py-1.5 text-xs relative">💬 Chat motoboy<span x-show="chatUnread>0" class="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[10px] grid place-items-center" style="background:var(--pg-primary)" x-text="chatUnread"></span></button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Tab: motoboys -->
+                    <div x-show="tab==='couriers'" class="flex-1 pg-scroll-area p-4 space-y-2" style="display:none">
+                        <template x-for="c in couriers" :key="c.id">
+                            <div class="flex items-center gap-3 p-3 rounded-xl pg-enter" style="background:color-mix(in srgb,var(--pg-text) 4%,transparent)">
+                                <div class="w-10 h-10 rounded-full grid place-items-center text-white font-semibold shrink-0" style="background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))" x-text="c.name.split(' ').map(s=>s[0]).slice(0,2).join('')"></div>
+                                <div class="min-w-0 flex-1">
+                                    <div class="font-semibold truncate" x-text="c.name"></div>
+                                    <div class="text-xs" style="color:var(--pg-muted)"><span x-text="'⭐ '+c.rating"></span> · <span x-text="c.total_deliveries+' entregas'"></span></div>
+                                </div>
+                                <span class="pg-badge" :class="c.status==='online'?'st-delivered':(c.status==='busy'?'st-dispatched':'st-canceled')" x-text="{online:'Online',busy:'Ocupado',offline:'Offline',suspended:'Suspenso'}[c.status]"></span>
+                                <button @click="focusCourier(c)" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('map','w-4 h-4')"></button>
+                            </div>
+                        </template>
+                        <div x-show="couriers.length===0" class="text-center py-8 text-sm" style="color:var(--pg-muted)">Nenhum motoboy cadastrado.</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Chat com o motoboy -->
+    <div x-show="chatOpen" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4" style="display:none">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="chatOpen=false"></div>
+        <div class="relative w-full sm:max-w-md h-[80vh] sm:h-[70vh] pg-card flex flex-col overflow-hidden pg-pop rounded-b-none sm:rounded-2xl">
+            <div class="px-4 py-3 flex items-center gap-3 border-b" style="border-color:var(--pg-border)">
+                <div class="w-9 h-9 rounded-full grid place-items-center text-white" style="background:linear-gradient(135deg,var(--pg-primary),var(--pg-accent))">🛵</div>
+                <div class="flex-1"><div class="font-bold text-sm" x-text="tracking?.delivery.courier_name||'Motoboy'"></div><div class="text-xs" style="color:var(--pg-muted)">Entrega #<span x-text="tracking?.delivery.order_code"></span></div></div>
+                <button @click="chatOpen=false" class="pg-btn pg-btn-ghost !p-2" x-html="PG.icon('close','w-4 h-4')"></button>
+            </div>
+            <div id="chatScroll" class="flex-1 pg-scroll-area p-4 space-y-2">
+                <template x-for="m in chatMessages" :key="m.id">
+                    <div class="flex" :class="m.sender==='establishment'?'justify-end':'justify-start'">
+                        <div class="max-w-[78%] px-3 py-2 rounded-2xl text-sm" :class="m.sender==='establishment'?'text-white':''" :style="m.sender==='establishment'?'background:var(--pg-primary)':'background:color-mix(in srgb,var(--pg-text) 8%,transparent)'">
+                            <span x-text="m.body"></span>
+                            <div class="text-[10px] mt-0.5 opacity-70" x-text="PG.fmt.time(m.created_at)"></div>
+                        </div>
+                    </div>
+                </template>
+                <div x-show="chatMessages.length===0" class="text-center text-sm py-8" style="color:var(--pg-muted)">Nenhuma mensagem ainda. Diga olá! 👋</div>
+            </div>
+            <form @submit.prevent="sendChat()" class="p-3 flex gap-2 border-t" style="border-color:var(--pg-border)">
+                <input x-model="chatInput" class="pg-input" placeholder="Mensagem..." />
+                <button type="submit" class="pg-btn pg-btn-primary !px-4" x-html="PG.icon('bolt','w-5 h-5')"></button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="/publishgo/assets/js/app.js?v=202606041800"></script>
+<script src="/publishgo/assets/js/realtime.js?v=202606041800"></script>
+<script src="/publishgo/assets/js/map.js?v=202606041800"></script>
+<script>
+function deliveriesPage() {
+    return {
+        map: null, tab: 'dispatch', couriers: [], orders: [], company: {},
+        manualCourier: {}, busyId: null, tracking: null, trackTimer: null,
+        chatOpen: false, chatDeliveryId: null, chatMessages: [], chatInput: '', chatLastId: 0, chatUnread: 0, chatTimer: null,
+        rt: { mode: 'offline' },
+        get dispatchable() { return this.orders.filter(o => ['received','preparing','ready'].includes(o.status)); },
+        async init() {
+            if (this.$el && this.$el._pgInit) return; if (this.$el) this.$el._pgInit = true;
+            if (!PG.requireAuth()) return;
+            PG.mountShell('map');
+            PG.applyBrand(PG.auth.company);
+
+            this.company = await PG.api.get('/company');
+            const center = (this.company.lat && this.company.lng) ? [this.company.lat, this.company.lng] : undefined;
+            this.map = PG.createMap('map', { center, zoom: 14 });
+            if (this.company.lat) this.map.setStore(this.company.lat, this.company.lng, this.company.name);
+
+            await this.load();
+            this.map.fitAll();
+
+            // Pré-seleção via ?order=
+            const pre = new URLSearchParams(location.search).get('order');
+            if (pre) { const o = this.orders.find(x => x.id == pre); if (o) { this.tab = 'dispatch'; PG.toast('Pedido #' + o.code + ' pronto para despacho.', 'info'); } }
+
+            this.connectRealtime();
+
+            // Limpeza ao sair desta view via navegação SPA.
+            if (PG.spa) PG.spa.onLeave(() => { clearInterval(this.trackTimer); clearInterval(this.chatTimer); try { this.map && this.map.map.remove(); } catch (e) {} });
+        },
+        async load() {
+            const [couriers, orders] = await Promise.all([
+                PG.api.get('/couriers'),
+                PG.api.get('/orders?active=1'),
+            ]);
+            this.couriers = couriers;
+            this.orders = orders;
+            this.map.syncCouriers(couriers.filter(c => c.lat && c.lng));
+        },
+        connectRealtime() {
+            PG.realtime.on('_status', (s) => { this.rt.mode = s.mode === 'ws' ? 'ws' : (s.connected ? 'ws' : (PG.realtime.mode)); this.rt.mode = PG.realtime.mode; });
+            PG.realtime.on('courier.location', (p) => {
+                const c = this.couriers.find(x => x.id == p.courier_id);
+                if (c) { c.lat = p.lat; c.lng = p.lng; c.heading = p.heading; }
+                this.map.upsertCourier({ id: p.courier_id, lat: p.lat, lng: p.lng, status: c?.status, name: c?.name });
+            });
+            PG.realtime.on('order.created', () => { PG.playChime(); this.load(); });
+            PG.realtime.on('order.status', () => this.load());
+            PG.realtime.on('delivery.dispatched', () => this.load());
+            PG.realtime.on('chat.message', (m) => {
+                if (m.sender !== 'courier') return;
+                if (this.chatOpen && m.delivery_id == this.chatDeliveryId) { this.loadChat(); }
+                else if (this.tracking && m.delivery_id == this.tracking.delivery.id) { this.chatUnread++; PG.playChime(); }
+            });
+            PG.realtime.on('poll', () => { this.load(); this.rt.mode = PG.realtime.mode; if (this.chatOpen) this.loadChat(); });
+            PG.realtime.connect();
+            this.rt.mode = PG.realtime.mode;
+        },
+        async dispatchAuto(o) {
+            this.busyId = o.id;
+            try {
+                const d = await PG.api.post('/deliveries/dispatch', { order_id: o.id, type: 'auto' });
+                PG.toast('🛵 ' + (d.courier_name || 'Motoboy') + ' a caminho! ETA ' + (d.eta_minutes || '–') + ' min', 'success');
+                this.startTracking(d.id);
+                this.load();
+            } catch (e) { PG.toast(e.message, 'error'); }
+            finally { this.busyId = null; }
+        },
+        async dispatchManual(o) {
+            const cid = this.manualCourier[o.id];
+            if (!cid) return;
+            this.busyId = o.id;
+            try {
+                const d = await PG.api.post('/deliveries/dispatch', { order_id: o.id, type: 'manual', courier_id: Number(cid) });
+                PG.toast('Despachado para ' + (d.courier_name || 'motoboy') + '!', 'success');
+                this.startTracking(d.id);
+                this.load();
+            } catch (e) { PG.toast(e.message, 'error'); }
+            finally { this.busyId = null; }
+        },
+        async startTracking(deliveryId) {
+            clearInterval(this.trackTimer);
+            const fetchTrack = async () => {
+                try {
+                    const t = await PG.api.get('/deliveries/' + deliveryId + '/track');
+                    this.tracking = t;
+                    if (t.courier.lat) this.map.upsertCourier({ id: 'track', lat: t.courier.lat, lng: t.courier.lng, status: 'busy', name: t.delivery.courier_name });
+                    if (t.destination.lat) this.map.setDestination(t.destination.lat, t.destination.lng, t.delivery.customer_name);
+                    if (t.route.length) this.map.drawRoute(t.route);
+                } catch (e) { /* entrega finalizada */ }
+            };
+            await fetchTrack();
+            this.trackTimer = setInterval(fetchTrack, 4000);
+        },
+        stopTracking() { clearInterval(this.trackTimer); this.tracking = null; this.map.drawRoute(null); this.map.setDestination(null); },
+        focusCourier(c) { if (c.lat) { this.map.map.setView([c.lat, c.lng], 16); } else { PG.toast('Motoboy sem localização.', 'warn'); } },
+        shareTrack() {
+            const token = this.tracking?.delivery?.track_token; if (!token) return;
+            const link = location.origin + PG.url('/app/track.html?t=' + token);
+            const phone = (this.tracking.delivery.customer_phone || '').replace(/\D/g, '');
+            const msg = 'Acompanhe sua entrega em tempo real: ' + link;
+            if (phone) { window.open('https://wa.me/55' + phone + '?text=' + encodeURIComponent(msg), '_blank'); }
+            else { navigator.clipboard.writeText(link).then(() => PG.toast('Link copiado! ' + link, 'success')).catch(() => prompt('Link do cliente:', link)); }
+        },
+        async openChat(deliveryId) {
+            this.chatDeliveryId = deliveryId; this.chatOpen = true; this.chatMessages = []; this.chatLastId = 0; this.chatUnread = 0;
+            await this.loadChat();
+            clearInterval(this.chatTimer);
+            this.chatTimer = setInterval(() => { if (this.chatOpen) this.loadChat(); }, 3500);
+        },
+        async loadChat() {
+            if (!this.chatDeliveryId) return;
+            try {
+                const msgs = await PG.api.get('/deliveries/' + this.chatDeliveryId + '/messages?after=' + this.chatLastId);
+                if (msgs.length) {
+                    this.chatMessages.push(...msgs);
+                    this.chatLastId = msgs[msgs.length - 1].id;
+                    this.$nextTick(() => { const s = document.getElementById('chatScroll'); if (s) s.scrollTop = s.scrollHeight; });
+                }
+            } catch (e) { /* ignore */ }
+        },
+        async sendChat() {
+            const body = this.chatInput.trim(); if (!body || !this.chatDeliveryId) return;
+            this.chatInput = '';
+            try { await PG.api.post('/deliveries/' + this.chatDeliveryId + '/messages', { body }); await this.loadChat(); }
+            catch (e) { PG.toast(e.message, 'error'); }
+        },
+    };
+}
+</script>
+</body>
+</html>

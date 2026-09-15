@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/*
+ * Publish Go · Desenvolvido por Alequizao <alequizao.dev@gmail.com>
+ * https://github.com/alequizao · © 2026 Alequizao. Todos os direitos reservados.
+ */
 /**
  * Simulador de movimento dos motoboys (para demonstração do mapa em tempo real).
  * Move levemente cada motoboy online/ocupado e publica a nova posição no WebSocket.

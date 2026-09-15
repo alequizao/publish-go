@@ -1,3 +1,5 @@
+-- Publish Go · Desenvolvido por Alequizao <alequizao.dev@gmail.com>
+-- https://github.com/alequizao · © 2026 Alequizao. Todos os direitos reservados.
 -- Cadastro completo do motoboy: dados pessoais, CNH e veículo.
 ALTER TABLE couriers
     ADD COLUMN cpf             VARCHAR(14)  DEFAULT NULL AFTER document,

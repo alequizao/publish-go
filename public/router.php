@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/*
+ * Publish Go · Desenvolvido por Alequizao <alequizao.dev@gmail.com>
+ * https://github.com/alequizao · © 2026 Alequizao. Todos os direitos reservados.
+ */
 /**
  * Router para o servidor embutido do PHP (php -S ... router.php).
  * Serve arquivos estáticos diretamente e direciona o resto para index.php (API)

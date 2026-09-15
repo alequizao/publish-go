@@ -1,3 +1,5 @@
+-- Publish Go · Desenvolvido por Alequizao <alequizao.dev@gmail.com>
+-- https://github.com/alequizao · © 2026 Alequizao. Todos os direitos reservados.
 -- Itens dos pedidos.
 CREATE TABLE IF NOT EXISTS order_items (
     id          INT UNSIGNED NOT NULL AUTO_INCREMENT,

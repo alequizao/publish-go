@@ -1,3 +1,5 @@
+-- Publish Go · Desenvolvido por Alequizao <alequizao.dev@gmail.com>
+-- https://github.com/alequizao · © 2026 Alequizao. Todos os direitos reservados.
 -- Catálogo: categorias, produtos, complementos.
 CREATE TABLE IF NOT EXISTS product_categories (
     id          INT UNSIGNED NOT NULL AUTO_INCREMENT,

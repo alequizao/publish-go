@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/*
+ * Publish Go · Desenvolvido por Alequizao <alequizao.dev@gmail.com>
+ * https://github.com/alequizao · © 2026 Alequizao. Todos os direitos reservados.
+ */
 /**
  * Gera os ícones PNG do PWA (gradiente com o monograma "PG").
  *   php bin/make-icons.php

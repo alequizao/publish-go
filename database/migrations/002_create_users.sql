@@ -1,3 +1,5 @@
+-- Publish Go · Desenvolvido por Alequizao <alequizao.dev@gmail.com>
+-- https://github.com/alequizao · © 2026 Alequizao. Todos os direitos reservados.
 -- Usuários do painel (admin global, estabelecimento, operador).
 CREATE TABLE IF NOT EXISTS users (
     id            INT UNSIGNED NOT NULL AUTO_INCREMENT,

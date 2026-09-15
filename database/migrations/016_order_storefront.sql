@@ -1,3 +1,5 @@
+-- Publish Go · Desenvolvido por Alequizao <alequizao.dev@gmail.com>
+-- https://github.com/alequizao · © 2026 Alequizao. Todos os direitos reservados.
 -- Pedidos vindos da loja pública (storefront) + rastreio do cupom aplicado.
 ALTER TABLE orders MODIFY COLUMN source ENUM('manual','ifood','api','whatsapp','storefront') NOT NULL DEFAULT 'manual';
 ALTER TABLE orders ADD COLUMN discount DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER subtotal;

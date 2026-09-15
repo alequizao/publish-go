@@ -1,3 +1,5 @@
+-- Publish Go · Desenvolvido por Alequizao <alequizao.dev@gmail.com>
+-- https://github.com/alequizao · © 2026 Alequizao. Todos os direitos reservados.
 -- Entregas (vínculo pedido <-> motoboy + ciclo de vida da corrida).
 CREATE TABLE IF NOT EXISTS deliveries (
     id            INT UNSIGNED NOT NULL AUTO_INCREMENT,

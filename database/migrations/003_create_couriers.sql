@@ -1,3 +1,5 @@
+-- Publish Go · Desenvolvido por Alequizao <alequizao.dev@gmail.com>
+-- https://github.com/alequizao · © 2026 Alequizao. Todos os direitos reservados.
 -- Motoboys / entregadores.
 CREATE TABLE IF NOT EXISTS couriers (
     id            INT UNSIGNED NOT NULL AUTO_INCREMENT,

@@ -1,3 +1,5 @@
+-- Publish Go · Desenvolvido por Alequizao <alequizao.dev@gmail.com>
+-- https://github.com/alequizao · © 2026 Alequizao. Todos os direitos reservados.
 -- Cupons de desconto e promoções da loja.
 CREATE TABLE IF NOT EXISTS coupons (
     id          INT UNSIGNED NOT NULL AUTO_INCREMENT,

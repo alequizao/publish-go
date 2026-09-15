@@ -1,3 +1,7 @@
+/*
+ * Publish Go · Desenvolvido por Alequizao <alequizao.dev@gmail.com>
+ * https://github.com/alequizao · © 2026 Alequizao. Todos os direitos reservados.
+ */
 /* ───────────────────────────────────────────────
    Publish Go — Service Worker (PWA)
    Precache do app shell + runtime cache stale-while-revalidate,

@@ -1,3 +1,5 @@
+-- Publish Go · Desenvolvido por Alequizao <alequizao.dev@gmail.com>
+-- https://github.com/alequizao · © 2026 Alequizao. Todos os direitos reservados.
 -- Comprovante de entrega (Proof of Delivery): quem recebeu, documento, foto e geolocalização.
 ALTER TABLE deliveries
     ADD COLUMN receiver_name     VARCHAR(150) DEFAULT NULL AFTER signature_url,

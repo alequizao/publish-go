@@ -1,3 +1,5 @@
+-- Publish Go · Desenvolvido por Alequizao <alequizao.dev@gmail.com>
+-- https://github.com/alequizao · © 2026 Alequizao. Todos os direitos reservados.
 -- Chat entre estabelecimento e motoboy (por entrega).
 CREATE TABLE IF NOT EXISTS messages (
     id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
